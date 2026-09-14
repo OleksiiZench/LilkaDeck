@@ -16,7 +16,7 @@ void setup() {
     Keyboard.begin();
     USB.begin();
     
-    // Коротка затримка для стабілізації USB
+    // Allow USB stack to stabilize and host OS to enumerate the HID device
     delay(200);
 
     Serial0.println("[SYS] Starting InputManager...");
@@ -29,6 +29,9 @@ void setup() {
 }
 
 void loop() {
+    // Process input non-blockingly to maintain HID responsiveness
     inputManager.update();
+    
+    // Yield CPU to prevent Watchdog Timer (WDT) triggers
     delay(1);
 }

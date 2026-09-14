@@ -1,21 +1,27 @@
 #include "display/DisplayManager.h"
 #include <Arduino.h>
 
+// Hardware specific pin to keep the console powered / backlight enabled
+constexpr uint8_t PIN_POWER_ENABLE = 46;
+
 DisplayManager::DisplayManager() : _tft() {
 }
 
 void DisplayManager::begin() {
-    pinMode(46, OUTPUT);
-    digitalWrite(46, HIGH);
+    // Manually assert power enable pin to prevent immediate shutdown
+    pinMode(PIN_POWER_ENABLE, OUTPUT);
+    digitalWrite(PIN_POWER_ENABLE, HIGH);
     delay(100);
 
-    Serial0.println("[TFT] Before tft.init()");
+    // Initialize SPI bus and the ST7789 display controller
     _tft.init();
-    Serial0.println("[TFT] After tft.init()");
 
+    // Set landscape orientation (270 degrees) for the stream deck layout
     _tft.setRotation(3);
-    _tft.fillScreen(TFT_BLACK);
-    Serial0.println("[TFT] Display ready.");
+    
+    clear();
+    
+    Serial0.println("[TFT] Display initialized.");
 }
 
 void DisplayManager::clear() {
