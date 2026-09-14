@@ -2,27 +2,33 @@
 #include "USB.h"
 #include "USBHIDKeyboard.h"
 #include "input/InputManager.h"
+#include "display/DisplayManager.h"
 
 USBHIDKeyboard Keyboard;
 InputManager inputManager(Keyboard);
+DisplayManager displayManager;
 
 void setup() {
-    Serial.begin(115200);
-    
-    // Start USB and HID profile
+    Serial0.begin(115200);
+    Serial0.println("\n--- LILKA BOOT SEQUENCE START ---");
+
+    Serial0.println("[SYS] Starting USB...");
     Keyboard.begin();
     USB.begin();
+    
+    // Коротка затримка для стабілізації USB
+    delay(200);
 
-    // Initialize buttons
+    Serial0.println("[SYS] Starting InputManager...");
     inputManager.begin();
     
-    Serial.println("Lilka Stream Deck: Ready.");
+    Serial0.println("[SYS] Starting DisplayManager...");
+    displayManager.begin(); 
+
+    Serial0.println("[SYS] Lilka Stream Deck: Ready.");
 }
 
 void loop() {
-    // Poll buttons non-blockingly
     inputManager.update();
-    
-    // Small delay to prevent watchdog triggers and yield CPU
     delay(1);
 }
