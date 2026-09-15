@@ -16,16 +16,30 @@ void DisplayManager::begin() {
 
     // Set landscape orientation (270 degrees) for the stream deck layout
     _tft.setRotation(3);
+
+    _tft.invertDisplay(true);
     
     clear();
     
     Serial0.println("[TFT] Display initialized.");
 }
 
+void DisplayManager::clear() {
+    _tft.fillScreen(TFT_BLACK);
+}
+
 SPIClass& DisplayManager::getSharedSpiBus() {
     return _tft.getSPIinstance();
 }
 
-void DisplayManager::clear() {
-    _tft.fillScreen(TFT_BLACK);
+void DisplayManager::drawIcon(int32_t x, int32_t y, int32_t width, int32_t height, uint16_t* imageBuffer) {
+    _tft.drawRect(x - 1, y - 1, width + 2, height + 2, TFT_WHITE);
+
+    for (int j = 0; j < height; j++) {
+        for (int i = 0; i < width; i++) {
+            uint16_t pixel = imageBuffer[j * width + i];
+            
+            _tft.drawPixel(x + i, y + j, pixel);
+        }
+    }
 }

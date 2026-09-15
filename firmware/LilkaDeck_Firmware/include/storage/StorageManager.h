@@ -9,6 +9,8 @@ public:
     // Explicitly inject the shared SPI bus and CS pin
     bool begin(SPIClass& spiBus, uint8_t csPin);
 
+    bool readFileToBuffer(const char* path, uint8_t* buffer, size_t bufferSize);
+
 private:
     bool _isMounted;
 };

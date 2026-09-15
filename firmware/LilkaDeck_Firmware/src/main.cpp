@@ -11,6 +11,11 @@ InputManager inputManager(Keyboard);
 DisplayManager displayManager;
 StorageManager storageManager;
 
+constexpr size_t ICON_WIDTH = 64;
+constexpr size_t ICON_HEIGHT = 64;
+constexpr size_t ICON_BUFFER_SIZE = ICON_WIDTH * ICON_HEIGHT * 2;
+uint8_t iconBuffer[ICON_BUFFER_SIZE] __attribute__((aligned(4)));
+
 void setup() {
     Serial0.begin(115200);
     Serial0.println("\n--- LILKA BOOT SEQUENCE START ---");
@@ -37,7 +42,19 @@ void setup() {
     Serial0.println("[SYS] Starting StorageManager...");
     // Explicit Dependency Injection: Share the initialized SPI bus with SD Card
     SPIClass& sharedSpiBus = displayManager.getSharedSpiBus();
-    storageManager.begin(sharedSpiBus, BoardConfig::PIN_SD_CS);
+
+    if (storageManager.begin(sharedSpiBus, BoardConfig::PIN_SD_CS)) {
+        Serial0.println("[SYS] Attempting to load /icon.raw...");
+        
+        if (storageManager.readFileToBuffer("/icon.raw", iconBuffer, ICON_BUFFER_SIZE)) {
+            uint16_t* rgb565Data = reinterpret_cast<uint16_t*>(iconBuffer);
+
+            Serial0.printf("[DIAG] First pixels: 0x%04X, 0x%04X\n", rgb565Data[0], rgb565Data[1]);
+            
+            displayManager.drawIcon(80, 80, ICON_WIDTH, ICON_HEIGHT, rgb565Data);
+            Serial0.println("[SYS] Icon rendered successfully!");
+        }
+    }
 
     Serial0.println("[SYS] Lilka Stream Deck: Ready.");
 }

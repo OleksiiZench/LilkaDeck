@@ -23,3 +23,32 @@ bool StorageManager::begin(SPIClass& spiBus, uint8_t csPin) {
     
     return true;
 }
+
+bool StorageManager::readFileToBuffer(const char* path, uint8_t* buffer, size_t bufferSize) {
+    if (!_isMounted) {
+        Serial0.println("[ERROR] StorageManager: Cannot read, SD not mounted.");
+        return false;
+    }
+
+    File file = SD.open(path, FILE_READ);
+    if (!file) {
+        Serial0.printf("[ERROR] StorageManager: Failed to open file %s\n", path);
+        return false;
+    }
+
+    size_t fileSize = file.size();
+    if (fileSize > bufferSize) {
+        Serial0.printf("[WARN] StorageManager: File %s is larger than buffer. Truncating.\n", path);
+        fileSize = bufferSize;
+    }
+
+    size_t bytesRead = file.read(buffer, fileSize);
+    file.close();
+
+    if (bytesRead != fileSize) {
+        Serial0.println("[ERROR] StorageManager: File read incomplete.");
+        return false;
+    }
+
+    return true;
+}
