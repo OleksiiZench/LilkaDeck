@@ -22,3 +22,6 @@
 Thumbs.db
 .idea/
 *.swp
+
+# Generated SD card raw icons
+*.raw
