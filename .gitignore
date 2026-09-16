@@ -25,3 +25,6 @@ Thumbs.db
 
 # Generated SD card raw icons
 *.raw
+
+# VS Code Workspace files
+*.code-workspace
