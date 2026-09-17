@@ -52,3 +52,14 @@ bool StorageManager::readFileToBuffer(const char* path, uint8_t* buffer, size_t 
 
     return true;
 }
+
+String StorageManager::readTextFile(const char* path) {
+    File file = SD.open(path);
+    if (!file) {
+        Serial0.printf("[STORAGE] Failed to open text file: %s\n", path);
+        return "";
+    }
+    String content = file.readString();
+    file.close();
+    return content;
+}

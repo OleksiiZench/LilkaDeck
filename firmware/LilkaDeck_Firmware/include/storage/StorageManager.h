@@ -10,6 +10,7 @@ public:
     bool begin(SPIClass& spiBus, uint8_t csPin);
 
     bool readFileToBuffer(const char* path, uint8_t* buffer, size_t bufferSize);
+    String readTextFile(const char *path);
 
 private:
     bool _isMounted;

@@ -2,6 +2,7 @@
 #include "USB.h"
 #include "USBHIDKeyboard.h"
 #include "config/BoardConfig.h"
+#include "config/ConfigManager.h"
 #include "input/InputManager.h"
 #include "display/DisplayManager.h"
 #include "storage/StorageManager.h"
@@ -10,6 +11,7 @@ USBHIDKeyboard Keyboard;
 InputManager inputManager(Keyboard);
 DisplayManager displayManager;
 StorageManager storageManager;
+ConfigManager configManager;
 
 constexpr size_t ICON_WIDTH = 64;
 constexpr size_t ICON_HEIGHT = 64;
@@ -28,41 +30,45 @@ void setup() {
     Serial0.println("[SYS] Starting USB...");
     Keyboard.begin();
     USB.begin();
-    
-    // Allow USB stack to stabilize and host OS to enumerate the HID device
-    delay(200);
+    delay(200); // Allow USB stack to stabilize and host OS to enumerate the HID device
 
     Serial0.println("[SYS] Starting InputManager...");
     inputManager.begin();
     
     Serial0.println("[SYS] Starting DisplayManager...");
-    // Initializes TFT_eSPI and its configured SPI instance.
-    displayManager.begin(); 
+    displayManager.begin(); // Initializes TFT_eSPI and its configured SPI instance.
 
     Serial0.println("[SYS] Starting StorageManager...");
-    // Explicit Dependency Injection: Share the initialized SPI bus with SD Card
-    SPIClass& sharedSpiBus = displayManager.getSharedSpiBus();
+    SPIClass& sharedSpiBus = displayManager.getSharedSpiBus(); // Explicit Dependency Injection: Share the initialized SPI bus with SD Card
 
     if (storageManager.begin(sharedSpiBus, BoardConfig::PIN_SD_CS)) {
-        Serial0.println("[SYS] Attempting to load /icon.raw...");
+        Serial0.println("[SYS] Reading config.json...");
         
-        if (storageManager.readFileToBuffer("/icon.raw", iconBuffer, ICON_BUFFER_SIZE)) {
-            uint16_t* rgb565Data = reinterpret_cast<uint16_t*>(iconBuffer);
+        // 1. Read the config file as text
+        String jsonConfig = storageManager.readTextFile("/config.json");
+        
+        if (jsonConfig.length() > 0 && configManager.loadConfig(jsonConfig)) {
+            Serial0.println("[SYS] Config parsed successfully. Drawing icons...");
 
-            // Array of all positions for grid testing
-            IconPosition positions[] = {
-                IconPosition::LeftUp, IconPosition::LeftLeft, 
-                IconPosition::LeftRight, IconPosition::LeftDown,
-                IconPosition::RightUp, IconPosition::RightLeft, 
-                IconPosition::RightRight, IconPosition::RightDown
-            };
-
-            // Draw an icon in each cell
-            for (IconPosition pos : positions) {
-                displayManager.drawIcon(pos, rgb565Data);
+            // 2. Go through all the buttons in the configuration
+            for (const auto& pair : configManager.getButtons()) {
+                IconPosition pos = pair.first;
+                String iconPath = pair.second.iconPath;
+                
+                // 3. Load the corresponding .raw file
+                if (storageManager.readFileToBuffer(iconPath.c_str(), iconBuffer, ICON_BUFFER_SIZE)) {
+                    uint16_t* rgb565Data = reinterpret_cast<uint16_t*>(iconBuffer);
+                    
+                    // 4. Drawing on the screen
+                    displayManager.drawIcon(pos, rgb565Data);
+                    Serial0.printf("[SYS] Rendered %s\n", iconPath.c_str());
+                } else {
+                    Serial0.printf("[ERR] Missing icon: %s\n", iconPath.c_str());
+                }
             }
-            
-            Serial0.println("[SYS] All 8 icons rendered successfully!");
+            Serial0.println("[SYS] All layout rendered successfully!");
+        } else {
+            Serial0.println("[ERR] Failed to load or parse config.json");
         }
     }
 
@@ -70,9 +76,6 @@ void setup() {
 }
 
 void loop() {
-    // Process input non-blockingly to maintain HID responsiveness
     inputManager.update();
-    
-    // Yield CPU to prevent Watchdog Timer (WDT) triggers
     delay(1);
 }
