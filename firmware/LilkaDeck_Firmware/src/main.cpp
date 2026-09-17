@@ -8,10 +8,12 @@
 #include "storage/StorageManager.h"
 
 USBHIDKeyboard Keyboard;
-InputManager inputManager(Keyboard);
+ConfigManager configManager;
+
+// Dependency Injection: Pass the populated configuration to the InputManager
+InputManager inputManager(Keyboard, configManager);
 DisplayManager displayManager;
 StorageManager storageManager;
-ConfigManager configManager;
 
 constexpr size_t ICON_WIDTH = 64;
 constexpr size_t ICON_HEIGHT = 64;
@@ -22,60 +24,56 @@ void setup() {
     Serial0.begin(115200);
     Serial0.println("\n--- LILKA BOOT SEQUENCE START ---");
 
-    // 1. Hardware Protection: Secure SPI bus state before any initialization
-    // Keep SD deselected before the SPI bus is used by other peripherals.
+    // Secure SPI bus state before initialization sequence
     pinMode(BoardConfig::PIN_SD_CS, OUTPUT);
     digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
 
-    Serial0.println("[SYS] Starting USB...");
+    Serial0.println("[SYS] Starting USB HID...");
     Keyboard.begin();
     USB.begin();
-    delay(200); // Allow USB stack to stabilize and host OS to enumerate the HID device
+    delay(200); // Allow OS to enumerate the USB device
 
-    Serial0.println("[SYS] Starting InputManager...");
-    inputManager.begin();
-    
     Serial0.println("[SYS] Starting DisplayManager...");
-    displayManager.begin(); // Initializes TFT_eSPI and its configured SPI instance.
+    displayManager.begin(); 
 
     Serial0.println("[SYS] Starting StorageManager...");
-    SPIClass& sharedSpiBus = displayManager.getSharedSpiBus(); // Explicit Dependency Injection: Share the initialized SPI bus with SD Card
+    SPIClass& sharedSpiBus = displayManager.getSharedSpiBus();
 
     if (storageManager.begin(sharedSpiBus, BoardConfig::PIN_SD_CS)) {
-        Serial0.println("[SYS] Reading config.json...");
+        Serial0.println("[SYS] Reading configuration payload...");
         
-        // 1. Read the config file as text
         String jsonConfig = storageManager.readTextFile("/config.json");
         
         if (jsonConfig.length() > 0 && configManager.loadConfig(jsonConfig)) {
-            Serial0.println("[SYS] Config parsed successfully. Drawing icons...");
+            Serial0.println("[SYS] Configuration parsed successfully. Rendering UI layout...");
 
-            // 2. Go through all the buttons in the configuration
+            // Iterate through logical positions and render allocated assets
             for (const auto& pair : configManager.getButtons()) {
                 IconPosition pos = pair.first;
                 String iconPath = pair.second.iconPath;
                 
-                // 3. Load the corresponding .raw file
                 if (storageManager.readFileToBuffer(iconPath.c_str(), iconBuffer, ICON_BUFFER_SIZE)) {
                     uint16_t* rgb565Data = reinterpret_cast<uint16_t*>(iconBuffer);
-                    
-                    // 4. Drawing on the screen
                     displayManager.drawIcon(pos, rgb565Data);
-                    Serial0.printf("[SYS] Rendered %s\n", iconPath.c_str());
-                } else {
-                    Serial0.printf("[ERR] Missing icon: %s\n", iconPath.c_str());
                 }
             }
-            Serial0.println("[SYS] All layout rendered successfully!");
+            Serial0.println("[SYS] UI layout initialization complete.");
         } else {
-            Serial0.println("[ERR] Failed to load or parse config.json");
+            Serial0.println("[ERR] Failed to load or evaluate config.json payload.");
         }
     }
+
+    // Initialize inputs after the configuration map is populated
+    Serial0.println("[SYS] Starting InputManager...");
+    inputManager.begin();
 
     Serial0.println("[SYS] Lilka Stream Deck: Ready.");
 }
 
 void loop() {
+    // Non-blocking polling
     inputManager.update();
+    
+    // Relinquish CPU slightly to prevent WDT resets
     delay(1);
 }
