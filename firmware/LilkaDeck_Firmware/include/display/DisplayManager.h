@@ -2,6 +2,14 @@
 #include <TFT_eSPI.h>
 #include <SPI.h>
 
+enum class IconPosition {
+    LeftUp, LeftLeft, LeftRight, LeftDown,
+    RightUp, RightLeft, RightRight, RightDown
+};
+
+
+
+
 class DisplayManager {
 public:
     DisplayManager();
@@ -12,8 +20,10 @@ public:
     // Expose the internal SPI bus for other peripherals (e.g., SD Card)
     SPIClass& getSharedSpiBus();
 
-    void drawIcon(int32_t x, int32_t y, int32_t width, int32_t height, uint16_t* imageBuffer);
+    void drawIcon(IconPosition pos, uint16_t* imageBuffer);
 
 private:
     TFT_eSPI _tft;
+
+    void getIconCoordinates(IconPosition pos, int32_t &x, int32_t &y);
 };

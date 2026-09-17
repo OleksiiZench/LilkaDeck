@@ -32,14 +32,35 @@ SPIClass& DisplayManager::getSharedSpiBus() {
     return _tft.getSPIinstance();
 }
 
-void DisplayManager::drawIcon(int32_t x, int32_t y, int32_t width, int32_t height, uint16_t* imageBuffer) {
-    _tft.drawRect(x - 1, y - 1, width + 2, height + 2, TFT_WHITE);
+void DisplayManager::drawIcon(IconPosition pos, uint16_t* imageBuffer) {
+    int32_t x, y;
+    getIconCoordinates(pos, x, y);
 
-    for (int j = 0; j < height; j++) {
-        for (int i = 0; i < width; i++) {
-            uint16_t pixel = imageBuffer[j * width + i];
-            
-            _tft.drawPixel(x + i, y + j, pixel);
-        }
+    _tft.startWrite();
+    _tft.drawPixel(0, 0, TFT_BLACK);
+    _tft.endWrite();
+
+    _tft.setSwapBytes(true); 
+    _tft.pushImage(x, y, 64, 64, imageBuffer);
+}
+
+void DisplayManager::getIconCoordinates(IconPosition pos, int32_t& x, int32_t& y) {
+    // Base Y-coordinates for the three rows
+    const int32_t ROW_UP = 18;
+    const int32_t ROW_MID = 88;
+    const int32_t ROW_DOWN = 158;
+
+    switch (pos) {
+        // --- LEFT SIDE ---
+        case IconPosition::LeftLeft:  x = 4;   y = ROW_MID;  break;
+        case IconPosition::LeftUp:    x = 37;  y = ROW_UP;   break;
+        case IconPosition::LeftDown:  x = 37;  y = ROW_DOWN; break;
+        case IconPosition::LeftRight: x = 70;  y = ROW_MID;  break;
+
+        // --- RIGHT SIDE ---
+        case IconPosition::RightLeft:  x = 146; y = ROW_MID;  break; 
+        case IconPosition::RightUp:    x = 179; y = ROW_UP;   break;
+        case IconPosition::RightDown:  x = 179; y = ROW_DOWN; break;
+        case IconPosition::RightRight: x = 212; y = ROW_MID;  break;
     }
 }

@@ -49,10 +49,20 @@ void setup() {
         if (storageManager.readFileToBuffer("/icon.raw", iconBuffer, ICON_BUFFER_SIZE)) {
             uint16_t* rgb565Data = reinterpret_cast<uint16_t*>(iconBuffer);
 
-            Serial0.printf("[DIAG] First pixels: 0x%04X, 0x%04X\n", rgb565Data[0], rgb565Data[1]);
+            // Array of all positions for grid testing
+            IconPosition positions[] = {
+                IconPosition::LeftUp, IconPosition::LeftLeft, 
+                IconPosition::LeftRight, IconPosition::LeftDown,
+                IconPosition::RightUp, IconPosition::RightLeft, 
+                IconPosition::RightRight, IconPosition::RightDown
+            };
+
+            // Draw an icon in each cell
+            for (IconPosition pos : positions) {
+                displayManager.drawIcon(pos, rgb565Data);
+            }
             
-            displayManager.drawIcon(80, 80, ICON_WIDTH, ICON_HEIGHT, rgb565Data);
-            Serial0.println("[SYS] Icon rendered successfully!");
+            Serial0.println("[SYS] All 8 icons rendered successfully!");
         }
     }
 
