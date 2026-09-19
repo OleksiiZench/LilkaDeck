@@ -1,7 +1,9 @@
 #include "input/InputManager.h"
 
-InputManager::InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManager, DisplayManager& displayManager) 
-    : _keyboard(keyboard), _configManager(configManager), _displayManager(displayManager) {
+#include "core/ProfileManager.h"
+
+InputManager::InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManager, DisplayManager& displayManager, ProfileManager& profileManager) 
+    : _keyboard(keyboard), _configManager(configManager), _displayManager(displayManager), _profileManager(profileManager) {
     
     // Map GPIO pins to logical identifiers based on hardware schematics.
     // Pins utilize internal pull-ups; default unpressed state evaluates to HIGH (true).
@@ -89,8 +91,15 @@ void InputManager::update() {
                             }
                         }
                     } else {
-                        Serial0.printf("[INPUT] Pressed System GPIO %d\n", btn.pin);
+                    // System button pressed (Select/Start)
+                    if (btn.id == ButtonID::Select) {
+                        Serial0.println("[INPUT] Select -> Previous Profile");
+                        _profileManager.previousProfile();
+                    } else if (btn.id == ButtonID::Start) {
+                        Serial0.println("[INPUT] Start -> Next Profile");
+                        _profileManager.nextProfile();
                     }
+                }
                 } 
                 // Handle Rising Edge (Button Released)
                 else {

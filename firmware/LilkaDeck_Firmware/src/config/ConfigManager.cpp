@@ -12,6 +12,10 @@ bool ConfigManager::loadConfig(const String& jsonString) {
         return false;
     }
 
+    _buttons.clear();
+
+    _profileName = doc["profileName"] | "Profile";
+
     JsonObject buttons = doc["buttons"];
     for (JsonPair kv : buttons) {
         String posStr = kv.key().c_str();
@@ -34,6 +38,11 @@ bool ConfigManager::loadConfig(const String& jsonString) {
 
 const std::map<IconPosition, ButtonConfig>& ConfigManager::getButtons() const {
     return _buttons;
+}
+
+String ConfigManager::getProfileName() const
+{
+    return _profileName;
 }
 
 IconPosition ConfigManager::stringToPosition(const String& posStr) {

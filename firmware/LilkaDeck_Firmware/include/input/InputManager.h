@@ -5,6 +5,8 @@
 #include "display/DisplayManager.h"
 #include "config/ConfigManager.h"
 
+class ProfileManager;
+
 // Hardware abstraction for physical device buttons
 enum class ButtonID {
     Up = 0, Down, Left, Right,
@@ -24,7 +26,7 @@ struct ButtonDef {
 
 class InputManager {
 public:
-    InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManager, DisplayManager& displayManager);
+    InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManager, DisplayManager& displayManager, ProfileManager& profileManager);
 
     void begin();
     void update();
@@ -33,6 +35,7 @@ private:
     USBHIDKeyboard& _keyboard;
     ConfigManager& _configManager;
     DisplayManager& _displayManager;
+    ProfileManager& _profileManager;
 
     ButtonDef _buttons[static_cast<int>(ButtonID::Count)];
     static const uint32_t DEBOUNCE_DELAY_MS = 20;

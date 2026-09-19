@@ -14,10 +14,14 @@ struct ButtonConfig {
 class ConfigManager {
 public:
     ConfigManager();
+
     bool loadConfig(const String& jsonString);
     const std::map<IconPosition, ButtonConfig>& getButtons() const;
+    String getProfileName() const;
 
 private:
     std::map<IconPosition, ButtonConfig> _buttons;
+    String _profileName;
+    
     IconPosition stringToPosition(const String& posStr);
 };

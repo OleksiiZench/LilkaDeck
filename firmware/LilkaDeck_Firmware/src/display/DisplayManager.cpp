@@ -108,6 +108,17 @@ void DisplayManager::setIconPressed(IconPosition pos, bool isPressed) {
     _tft.endWrite();
 }
 
+void DisplayManager::drawProfileName(const String &name)
+{
+    _tft.fillRect(0, 224, 280, 16, TFT_BLACK);
+    
+    _tft.setTextDatum(BC_DATUM);
+    _tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+    _tft.setTextSize(1);
+    
+    _tft.drawString(name, 140, 238);
+}
+
 void DisplayManager::getIconCoordinates(IconPosition pos, int32_t& x, int32_t& y) {
     const int32_t ROW_UP = 18;
     const int32_t ROW_MID = 88;
