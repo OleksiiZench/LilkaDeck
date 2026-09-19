@@ -9,6 +9,8 @@
 
 USBHIDKeyboard Keyboard;
 ConfigManager configManager;
+
+// Dependency Injection: Pass the populated configuration to the InputManager
 InputManager inputManager(Keyboard, configManager);
 DisplayManager displayManager;
 StorageManager storageManager;
@@ -19,20 +21,23 @@ constexpr size_t ICON_BUFFER_SIZE = ICON_WIDTH * ICON_HEIGHT * 2;
 uint8_t iconBuffer[ICON_BUFFER_SIZE] __attribute__((aligned(4)));
 
 void setup() {
+    // Immediately disable the display backlight to suppress hardware boot artifacts
     pinMode(46, OUTPUT);
     digitalWrite(46, LOW);
 
     Serial0.begin(115200);
     Serial0.println("\n--- LILKA BOOT SEQUENCE START ---");
 
-    // Secure SPI bus state before initialization sequence
+    // Secure the SPI bus state before initializing shared peripherals
     pinMode(BoardConfig::PIN_SD_CS, OUTPUT);
     digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
 
     Serial0.println("[SYS] Starting USB HID...");
     Keyboard.begin();
     USB.begin();
-    delay(200); // Allow OS to enumerate the USB device
+    
+    // Provide sufficient delay for the host OS to enumerate the USB HID device
+    delay(200); 
 
     Serial0.println("[SYS] Starting DisplayManager...");
     displayManager.begin();
@@ -53,7 +58,7 @@ void setup() {
 
             displayManager.clear();
 
-            // Iterate through logical positions and render allocated assets
+            // Iterate through mapped logical positions and render the assigned assets
             for (const auto& pair : configManager.getButtons()) {
                 IconPosition pos = pair.first;
                 String iconPath = pair.second.iconPath;
@@ -69,7 +74,7 @@ void setup() {
         }
     }
 
-    // Initialize inputs after the configuration map is populated
+    // Initialize the input polling matrix after the configuration is fully loaded
     Serial0.println("[SYS] Starting InputManager...");
     inputManager.begin();
 
@@ -77,9 +82,9 @@ void setup() {
 }
 
 void loop() {
-    // Non-blocking polling
+    // Process input states non-blockingly
     inputManager.update();
     
-    // Relinquish CPU slightly to prevent WDT resets
+    // Relinquish CPU time to the RTOS scheduler to prevent WDT resets
     delay(1);
 }

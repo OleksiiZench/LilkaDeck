@@ -9,44 +9,47 @@ void DisplayManager::begin() {
     pinMode(BoardConfig::PIN_POWER_ENABLE, OUTPUT);
     digitalWrite(BoardConfig::PIN_POWER_ENABLE, HIGH);
     
-    // 1. Жорстко гасимо підсвітку до будь-яких операцій
+    // Ensure the backlight is disabled before any memory operations
     const uint8_t PIN_BLK = 46;
     pinMode(PIN_BLK, OUTPUT);
     digitalWrite(PIN_BLK, LOW); 
     
-    delay(50); // Даємо час на стабілізацію живлення матриці
+    // Allow hardware voltage to stabilize
+    delay(50); 
 
-    // Ініціалізація контролера
+    // Initialize the ST7789 display controller
     _tft.init();
 
-    // 2. ХАК ДЛЯ TFT_eSPI: Обхід програмної обрізки
-    // Скидаємо ротацію в нуль, щоб отримати доступ до сирих координат
+    // Bypass TFT_eSPI software clipping bounds to access the full physical SRAM.
+    // The Lilka panel is 240x280, but the ST7789 chip retains 240x320 GRAM.
+    // Resetting rotation to 0 aligns the coordinate origin with the hardware memory address 0.
     _tft.setRotation(0); 
     
-    // Відкриваємо вікно на ВСЮ фізичну пам'ять чипа (240x320), ігноруючи розмір панелі Лілки
     _tft.startWrite();
+    // Open a write window mapping the entire 240x320 physical GRAM
     _tft.setWindow(0, 0, 240, 320); 
-    // Заливаємо всі 76800 пікселів чорним кольором безперервним блоком
+    // Push a continuous black block to overwrite all 76,800 pixels, eliminating factory retention noise
     _tft.pushBlock(TFT_BLACK, 240 * 320); 
     _tft.endWrite();
 
-    // 3. Тепер безпечно виставляємо нашу ландшафтну орієнтацію
+    // Safely restore the required landscape orientation
     _tft.setRotation(3);
     _tft.invertDisplay(true);
     
-    // 4. Робимо фіктивний клір у правильній ротації (про всяк випадок для внутрішніх змінних бібліотеки)
+    // Execute a standard clear to synchronize internal TFT_eSPI state variables
     _tft.fillScreen(TFT_BLACK);
     
-    // Даємо мікросекунду матриці на оновлення кадру, перш ніж вмикати світло
+    // Allow the LCD matrix one frame cycle to update before illuminating
     delay(20); 
     
-    // 5. Вмикаємо екран. Тепер пам'ять ідеально чиста від краю до краю.
+    // Enable the backlight now that the GRAM is fully sanitized
     digitalWrite(PIN_BLK, HIGH);
     
     Serial0.println("[TFT] Display initialized with full hardware GRAM wipe.");
 }
 
 void DisplayManager::clear() {
+    // Dummy SPI transaction to stabilize the bus state after SD card operations
     _tft.startWrite();
     _tft.drawPixel(0, 0, TFT_BLACK);
     _tft.endWrite();
@@ -62,10 +65,12 @@ void DisplayManager::drawIcon(IconPosition pos, uint16_t* imageBuffer) {
     int32_t x, y;
     getIconCoordinates(pos, x, y);
 
+    // Dummy transaction for SPI bus synchronization
     _tft.startWrite();
     _tft.drawPixel(0, 0, TFT_BLACK);
     _tft.endWrite();
 
+    // Endianness swap required for rendering standard RGB565 raw images
     _tft.setSwapBytes(true); 
     _tft.pushImage(x, y, 64, 64, imageBuffer);
 }
@@ -74,39 +79,32 @@ void DisplayManager::showBootScreen()
 {
     clear();
 
-    // Set text alignment to Middle Center
     _tft.setTextDatum(MC_DATUM);
 
-    // Draw main title in white
+    // Render primary title
     _tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    _tft.setTextSize(3); // Multiplier for the default font
-    
-    // Width is 280, Height is 240 (in rotation 3)
-    // Draw slightly above the absolute vertical center
+    _tft.setTextSize(3); 
     _tft.drawString("LILKA DECK", _tft.width() / 2, _tft.height() / 2 - 15);
 
-    // Draw subtitle in grey
+    // Render status subtitle
     _tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
     _tft.setTextSize(1);
-    
-    // Draw slightly below the vertical center
     _tft.drawString("Loading configuration...", _tft.width() / 2, _tft.height() / 2 + 25);
 }
 
 void DisplayManager::getIconCoordinates(IconPosition pos, int32_t& x, int32_t& y) {
-    // Base Y-coordinates for the three rows
     const int32_t ROW_UP = 18;
     const int32_t ROW_MID = 88;
     const int32_t ROW_DOWN = 158;
 
     switch (pos) {
-        // --- LEFT SIDE ---
+        // Left D-Pad cluster alignment
         case IconPosition::LeftLeft:  x = 4;   y = ROW_MID;  break;
         case IconPosition::LeftUp:    x = 37;  y = ROW_UP;   break;
         case IconPosition::LeftDown:  x = 37;  y = ROW_DOWN; break;
         case IconPosition::LeftRight: x = 70;  y = ROW_MID;  break;
 
-        // --- RIGHT SIDE ---
+        // Right Action cluster alignment
         case IconPosition::RightLeft:  x = 146; y = ROW_MID;  break; 
         case IconPosition::RightUp:    x = 179; y = ROW_UP;   break;
         case IconPosition::RightDown:  x = 179; y = ROW_DOWN; break;

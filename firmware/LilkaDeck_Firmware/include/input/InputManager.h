@@ -5,14 +5,15 @@
 #include "display/DisplayManager.h"
 #include "config/ConfigManager.h"
 
-// Enum for readable button identification
+// Hardware abstraction for physical device buttons
 enum class ButtonID {
     Up = 0, Down, Left, Right,
     A, B, C, D,
     Select, Start,
-    Count // Automatically keeps track of the total number of buttons (10)
+    Count 
 };
 
+// Represents the hardware state and properties of a single button
 struct ButtonDef {
     ButtonID id;
     uint8_t pin;
@@ -32,11 +33,12 @@ private:
     USBHIDKeyboard& _keyboard;
     ConfigManager& _configManager;
 
-    // Array size is automatically determined by the enum
     ButtonDef _buttons[static_cast<int>(ButtonID::Count)];
     static const uint32_t DEBOUNCE_DELAY_MS = 20;
 
-    // Helper methods
+    // Maps a physical button to a logical UI grid position
     bool getIconPositionForButton(ButtonID btnId, IconPosition& outPos);
+    
+    // Translates configuration string values into USB HID modifier/key codes
     uint8_t stringToKeycode(const String& keyStr);
 };
