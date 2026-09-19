@@ -9,8 +9,6 @@
 
 USBHIDKeyboard Keyboard;
 ConfigManager configManager;
-
-// Dependency Injection: Pass the populated configuration to the InputManager
 InputManager inputManager(Keyboard, configManager);
 DisplayManager displayManager;
 StorageManager storageManager;
@@ -21,6 +19,9 @@ constexpr size_t ICON_BUFFER_SIZE = ICON_WIDTH * ICON_HEIGHT * 2;
 uint8_t iconBuffer[ICON_BUFFER_SIZE] __attribute__((aligned(4)));
 
 void setup() {
+    pinMode(46, OUTPUT);
+    digitalWrite(46, LOW);
+
     Serial0.begin(115200);
     Serial0.println("\n--- LILKA BOOT SEQUENCE START ---");
 
@@ -34,7 +35,10 @@ void setup() {
     delay(200); // Allow OS to enumerate the USB device
 
     Serial0.println("[SYS] Starting DisplayManager...");
-    displayManager.begin(); 
+    displayManager.begin();
+
+    displayManager.showBootScreen();
+    delay(1000);
 
     Serial0.println("[SYS] Starting StorageManager...");
     SPIClass& sharedSpiBus = displayManager.getSharedSpiBus();
@@ -46,6 +50,8 @@ void setup() {
         
         if (jsonConfig.length() > 0 && configManager.loadConfig(jsonConfig)) {
             Serial0.println("[SYS] Configuration parsed successfully. Rendering UI layout...");
+
+            displayManager.clear();
 
             // Iterate through logical positions and render allocated assets
             for (const auto& pair : configManager.getButtons()) {

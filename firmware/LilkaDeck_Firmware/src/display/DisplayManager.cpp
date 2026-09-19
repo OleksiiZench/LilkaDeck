@@ -6,25 +6,51 @@ DisplayManager::DisplayManager() : _tft() {
 }
 
 void DisplayManager::begin() {
-    // Manually assert power enable pin to prevent immediate shutdown
     pinMode(BoardConfig::PIN_POWER_ENABLE, OUTPUT);
     digitalWrite(BoardConfig::PIN_POWER_ENABLE, HIGH);
-    delay(100);
+    
+    // 1. Жорстко гасимо підсвітку до будь-яких операцій
+    const uint8_t PIN_BLK = 46;
+    pinMode(PIN_BLK, OUTPUT);
+    digitalWrite(PIN_BLK, LOW); 
+    
+    delay(50); // Даємо час на стабілізацію живлення матриці
 
-    // Initializes SPI bus (HSPI) and the ST7789 display controller
+    // Ініціалізація контролера
     _tft.init();
 
-    // Set landscape orientation (270 degrees) for the stream deck layout
-    _tft.setRotation(3);
+    // 2. ХАК ДЛЯ TFT_eSPI: Обхід програмної обрізки
+    // Скидаємо ротацію в нуль, щоб отримати доступ до сирих координат
+    _tft.setRotation(0); 
+    
+    // Відкриваємо вікно на ВСЮ фізичну пам'ять чипа (240x320), ігноруючи розмір панелі Лілки
+    _tft.startWrite();
+    _tft.setWindow(0, 0, 240, 320); 
+    // Заливаємо всі 76800 пікселів чорним кольором безперервним блоком
+    _tft.pushBlock(TFT_BLACK, 240 * 320); 
+    _tft.endWrite();
 
+    // 3. Тепер безпечно виставляємо нашу ландшафтну орієнтацію
+    _tft.setRotation(3);
     _tft.invertDisplay(true);
     
-    clear();
+    // 4. Робимо фіктивний клір у правильній ротації (про всяк випадок для внутрішніх змінних бібліотеки)
+    _tft.fillScreen(TFT_BLACK);
     
-    Serial0.println("[TFT] Display initialized.");
+    // Даємо мікросекунду матриці на оновлення кадру, перш ніж вмикати світло
+    delay(20); 
+    
+    // 5. Вмикаємо екран. Тепер пам'ять ідеально чиста від краю до краю.
+    digitalWrite(PIN_BLK, HIGH);
+    
+    Serial0.println("[TFT] Display initialized with full hardware GRAM wipe.");
 }
 
 void DisplayManager::clear() {
+    _tft.startWrite();
+    _tft.drawPixel(0, 0, TFT_BLACK);
+    _tft.endWrite();
+
     _tft.fillScreen(TFT_BLACK);
 }
 
@@ -42,6 +68,29 @@ void DisplayManager::drawIcon(IconPosition pos, uint16_t* imageBuffer) {
 
     _tft.setSwapBytes(true); 
     _tft.pushImage(x, y, 64, 64, imageBuffer);
+}
+
+void DisplayManager::showBootScreen()
+{
+    clear();
+
+    // Set text alignment to Middle Center
+    _tft.setTextDatum(MC_DATUM);
+
+    // Draw main title in white
+    _tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    _tft.setTextSize(3); // Multiplier for the default font
+    
+    // Width is 280, Height is 240 (in rotation 3)
+    // Draw slightly above the absolute vertical center
+    _tft.drawString("LILKA DECK", _tft.width() / 2, _tft.height() / 2 - 15);
+
+    // Draw subtitle in grey
+    _tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    _tft.setTextSize(1);
+    
+    // Draw slightly below the vertical center
+    _tft.drawString("Loading configuration...", _tft.width() / 2, _tft.height() / 2 + 25);
 }
 
 void DisplayManager::getIconCoordinates(IconPosition pos, int32_t& x, int32_t& y) {

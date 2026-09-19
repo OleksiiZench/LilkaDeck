@@ -21,6 +21,7 @@ public:
     SPIClass& getSharedSpiBus();
 
     void drawIcon(IconPosition pos, uint16_t* imageBuffer);
+    void showBootScreen();
 
 private:
     TFT_eSPI _tft;
