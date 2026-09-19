@@ -24,14 +24,15 @@ struct ButtonDef {
 
 class InputManager {
 public:
-    InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManager);
-    
+    InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManager, DisplayManager& displayManager);
+
     void begin();
     void update();
 
 private:
     USBHIDKeyboard& _keyboard;
     ConfigManager& _configManager;
+    DisplayManager& _displayManager;
 
     ButtonDef _buttons[static_cast<int>(ButtonID::Count)];
     static const uint32_t DEBOUNCE_DELAY_MS = 20;

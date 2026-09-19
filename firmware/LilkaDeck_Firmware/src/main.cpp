@@ -7,13 +7,12 @@
 #include "display/DisplayManager.h"
 #include "storage/StorageManager.h"
 
-USBHIDKeyboard Keyboard;
+USBHIDKeyboard keyboard;
 ConfigManager configManager;
-
-// Dependency Injection: Pass the populated configuration to the InputManager
-InputManager inputManager(Keyboard, configManager);
 DisplayManager displayManager;
 StorageManager storageManager;
+InputManager inputManager(keyboard, configManager, displayManager);
+
 
 constexpr size_t ICON_WIDTH = 64;
 constexpr size_t ICON_HEIGHT = 64;
@@ -33,7 +32,7 @@ void setup() {
     digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
 
     Serial0.println("[SYS] Starting USB HID...");
-    Keyboard.begin();
+    keyboard.begin();
     USB.begin();
     
     // Provide sufficient delay for the host OS to enumerate the USB HID device

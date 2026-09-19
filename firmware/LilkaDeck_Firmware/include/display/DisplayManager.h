@@ -20,6 +20,7 @@ public:
 
     void drawIcon(IconPosition pos, uint16_t* imageBuffer);
     void showBootScreen();
+    void setIconPressed(IconPosition pos, bool isPressed);
 
 private:
     TFT_eSPI _tft;

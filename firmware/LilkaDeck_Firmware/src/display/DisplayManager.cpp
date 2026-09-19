@@ -92,6 +92,22 @@ void DisplayManager::showBootScreen()
     _tft.drawString("Loading configuration...", _tft.width() / 2, _tft.height() / 2 + 25);
 }
 
+void DisplayManager::setIconPressed(IconPosition pos, bool isPressed) {
+    int32_t x, y;
+    getIconCoordinates(pos, x, y);
+
+    // uint16_t activeColor = _tft.color565(220, 50, 50);
+    uint16_t activeColor = TFT_CYAN;
+
+    uint16_t color = isPressed ? activeColor : TFT_BLACK;
+
+    _tft.startWrite();
+    for (int i = 2; i <= 3; i++) {
+        _tft.drawRoundRect(x - i, y - i, 64 + (i * 2), 64 + (i * 2), 4, color);
+    }
+    _tft.endWrite();
+}
+
 void DisplayManager::getIconCoordinates(IconPosition pos, int32_t& x, int32_t& y) {
     const int32_t ROW_UP = 18;
     const int32_t ROW_MID = 88;

@@ -1,7 +1,7 @@
 #include "input/InputManager.h"
 
-InputManager::InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManager) 
-    : _keyboard(keyboard), _configManager(configManager) {
+InputManager::InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManager, DisplayManager& displayManager) 
+    : _keyboard(keyboard), _configManager(configManager), _displayManager(displayManager) {
     
     // Map GPIO pins to logical identifiers based on hardware schematics.
     // Pins utilize internal pull-ups; default unpressed state evaluates to HIGH (true).
@@ -72,6 +72,8 @@ void InputManager::update() {
                     if (getIconPositionForButton(btn.id, pos)) {
                         Serial0.printf("[INPUT] Pressed GPIO %d (Macro triggered)\n", btn.pin);
                         
+                        _displayManager.setIconPressed(pos, true);
+
                         const auto& configuredButtons = _configManager.getButtons();
                         auto it = configuredButtons.find(pos);
                         
@@ -93,6 +95,11 @@ void InputManager::update() {
                 // Handle Rising Edge (Button Released)
                 else {
                     Serial0.printf("[INPUT] Released GPIO %d\n", btn.pin);
+                    
+                    IconPosition pos;
+                    if (getIconPositionForButton(btn.id, pos)) {
+                        _displayManager.setIconPressed(pos, false);
+                    }
                     
                     // Globally clear HID report to prevent persistent phantom keystrokes on the host OS
                     _keyboard.releaseAll();
