@@ -1,5 +1,4 @@
 #include "input/InputManager.h"
-
 #include "core/ProfileManager.h"
 
 InputManager::InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManager, DisplayManager& displayManager, ProfileManager& profileManager) 
@@ -74,32 +73,43 @@ void InputManager::update() {
                     if (getIconPositionForButton(btn.id, pos)) {
                         Serial0.printf("[INPUT] Pressed GPIO %d (Macro triggered)\n", btn.pin);
                         
+                        // Execute immediate visual feedback (green border)
                         _displayManager.setIconPressed(pos, true);
 
                         const auto& configuredButtons = _configManager.getButtons();
                         auto it = configuredButtons.find(pos);
                         
                         if (it != configuredButtons.end()) {
-                            const std::vector<String>& actions = it->second.actions;
+                            const ButtonConfig& btnConfig = it->second;
+                            const std::vector<String>& actions = btnConfig.actions;
                             
-                            // Iterate through and assert all specified HID commands concurrently
-                            for (const String& action : actions) {
-                                uint8_t keycode = stringToKeycode(action);
-                                if (keycode > 0) {
-                                    _keyboard.press(keycode);
+                            // Hybrid Execution Logic
+                            if (btnConfig.type == "launch") {
+                                // Request the companion desktop app to launch the specified target
+                                if (!actions.empty()) {
+                                    String command = "EXECUTE:" + actions[0];
+                                    Serial0.println(command);
+                                }
+                            } else {
+                                // Default HID Keyboard emulation
+                                for (const String& action : actions) {
+                                    uint8_t keycode = stringToKeycode(action);
+                                    if (keycode > 0) {
+                                        _keyboard.press(keycode);
+                                    }
                                 }
                             }
                         }
                     } else {
-                    // System button pressed (Select/Start)
-                    if (btn.id == ButtonID::Select) {
-                        Serial0.println("[INPUT] Select -> Previous Profile");
-                        _profileManager.previousProfile();
-                    } else if (btn.id == ButtonID::Start) {
-                        Serial0.println("[INPUT] Start -> Next Profile");
-                        _profileManager.nextProfile();
+                        // System button pressed (Select/Start)
+                        if (btn.id == ButtonID::Select) {
+                            Serial0.println("[INPUT] Select -> Previous Profile");
+                            _profileManager.previousProfile();
+                        } else if (btn.id == ButtonID::Start) {
+                            Serial0.println("[INPUT] Start -> Next Profile");
+                            _profileManager.nextProfile();
+                        }
                     }
-                }
                 } 
                 // Handle Rising Edge (Button Released)
                 else {
@@ -107,10 +117,12 @@ void InputManager::update() {
                     
                     IconPosition pos;
                     if (getIconPositionForButton(btn.id, pos)) {
+                        // Remove visual feedback
                         _displayManager.setIconPressed(pos, false);
                     }
                     
                     // Globally clear HID report to prevent persistent phantom keystrokes on the host OS
+                    // (This safely affects only keys pressed during a 'shortcut' action)
                     _keyboard.releaseAll();
                 }
             }

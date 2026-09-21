@@ -23,6 +23,8 @@ bool ConfigManager::loadConfig(const String& jsonString) {
 
         ButtonConfig config;
         config.iconPath = btnData["icon"].as<String>();
+
+        config.type = btnData["type"] | "shortcut";
         
         JsonArray actions = btnData["action"];
         for (JsonVariant v : actions) {

@@ -8,6 +8,7 @@
 
 struct ButtonConfig {
     String iconPath;
+    String type;
     std::vector<String> actions;
 };
 
