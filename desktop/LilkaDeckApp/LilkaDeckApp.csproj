@@ -15,5 +15,6 @@
       <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="SixLabors.ImageSharp" Version="4.1.2" />
   </ItemGroup>
 </Project>
