@@ -1,20 +1,22 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.IO;
+using System.IO.Ports;
+using System.Diagnostics;
 
 namespace LilkaDeckApp;
 
-// Model for internal UI state management
 public class ButtonConfig
 {
     public string IconPath { get; set; } = "";
-    public string ActionType { get; set; } = "shortcut"; // Defaults to standard macro
+    public string ActionType { get; set; } = "shortcut";
     public string Actions { get; set; } = "";
 }
 
@@ -22,6 +24,9 @@ public partial class MainWindow : Window
 {
     private readonly Dictionary<string, ButtonConfig> _deckConfigs = new();
     private string _currentSelectedPosition = "";
+    
+    // NEW: Object for COM port communication
+    private SerialPort? _serialPort;
 
     public MainWindow()
     {
@@ -32,7 +37,98 @@ public partial class MainWindow : Window
         {
             _deckConfigs[pos] = new ButtonConfig();
         }
+
+        // Load available COM ports at startup
+        LoadAvailablePorts();
     }
+
+    // --- NEW SERIAL PORT LOGIC ---
+
+    private void LoadAvailablePorts()
+    {
+        string[] ports = SerialPort.GetPortNames();
+        ComPortComboBox.ItemsSource = ports;
+        
+        if (ports.Length > 0)
+        {
+            ComPortComboBox.SelectedIndex = 0;
+        }
+    }
+
+    private void OnRefreshPortsClicked(object? sender, RoutedEventArgs e)
+    {
+        LoadAvailablePorts();
+    }
+
+    private void OnConnectButtonClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_serialPort != null && _serialPort.IsOpen)
+        {
+            // Disconnect
+            _serialPort.Close();
+            _serialPort.Dispose();
+            _serialPort = null;
+            
+            ConnectButton.Content = "Підключити";
+            ConnectButton.Background = SolidColorBrush.Parse("#4CAF50");
+            ConnectionStatusText.Text = "Статус: Відключено";
+            ConnectionStatusText.Foreground = SolidColorBrush.Parse("#FF5252");
+        }
+        else
+        {
+            // Connect
+            if (ComPortComboBox.SelectedItem is string portName)
+            {
+                try
+                {
+                    _serialPort = new SerialPort(portName, 115200);
+                    _serialPort.DataReceived += OnSerialDataReceived;
+                    _serialPort.Open();
+
+                    ConnectButton.Content = "Відключити";
+                    ConnectButton.Background = SolidColorBrush.Parse("#FF5252");
+                    ConnectionStatusText.Text = $"Статус: Підключено ({portName})";
+                    ConnectionStatusText.Foreground = SolidColorBrush.Parse("#4CAF50");
+                }
+                catch (Exception ex)
+                {
+                    ConnectionStatusText.Text = $"Помилка: {ex.Message}";
+                    ConnectionStatusText.Foreground = SolidColorBrush.Parse("#FF5252");
+                }
+            }
+        }
+    }
+
+    // Background COM port listener (runs on a separate thread!)
+    private void OnSerialDataReceived(object sender, SerialDataReceivedEventArgs e)
+    {
+        if (_serialPort == null || !_serialPort.IsOpen) return;
+
+        try
+        {
+            // Read the string from Lilka
+            string data = _serialPort.ReadLine().Trim();
+            
+            // If this is a launch command
+            if (data.StartsWith("EXECUTE:"))
+            {
+                string target = data.Substring(8).Trim();
+                
+                // Launch via the system (UseShellExecute is mandatory for URLs and general files)
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = target,
+                    UseShellExecute = true
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Serial Error: {ex.Message}");
+        }
+    }
+
+    // --- OLD UI LOGIC ---
 
     private void OnDeckButtonClicked(object? sender, RoutedEventArgs e)
     {
@@ -47,18 +143,13 @@ public partial class MainWindow : Window
             IconPathTextBox.Text = config.IconPath;
             ActionsTextBox.Text = config.Actions;
 
-            // Unsubscribe temporarily to prevent overwriting the model during UI update
             ActionTypeComboBox.SelectionChanged -= OnActionTypeChanged;
-            
-            // Set the correct combobox item based on the current configuration
             ActionTypeComboBox.SelectedIndex = config.ActionType == "launch" ? 1 : 0;
             UpdateActionHint(config.ActionType);
-            
             ActionTypeComboBox.SelectionChanged += OnActionTypeChanged;
         }
     }
 
-    // Handles the change between 'Shortcut' and 'Launch' types
     private void OnActionTypeChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (string.IsNullOrEmpty(_currentSelectedPosition)) return;
@@ -70,7 +161,6 @@ public partial class MainWindow : Window
         }
     }
 
-    // Dynamically updates the UI text based on the selected action type
     private void UpdateActionHint(string type)
     {
         if (type == "shortcut")
@@ -128,7 +218,7 @@ public partial class MainWindow : Window
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Помилка конвертації: {ex.Message}");
+                    Console.WriteLine($"Conversion Error: {ex.Message}");
                 }
             }
 
@@ -150,7 +240,6 @@ public partial class MainWindow : Window
             {
                 var actionList = new List<string>();
 
-                // Process shortcuts as comma-separated arrays, and launches as a single array item
                 if (kvp.Value.ActionType == "shortcut")
                 {
                     actionList = kvp.Value.Actions
@@ -167,7 +256,7 @@ public partial class MainWindow : Window
                 output.Buttons[kvp.Key] = new OutputButton
                 {
                     Icon = kvp.Value.IconPath,
-                    Type = kvp.Value.ActionType, // NEW FIELD
+                    Type = kvp.Value.ActionType,
                     Action = actionList
                 };
             }
@@ -197,7 +286,7 @@ public partial class MainWindow : Window
     }
 }
 
-// Serialization models
+// Models
 public class OutputConfig
 {
     [JsonPropertyName("profileName")]
@@ -212,7 +301,6 @@ public class OutputButton
     [JsonPropertyName("icon")]
     public string Icon { get; set; } = "";
 
-    // Added serialization for action type routing
     [JsonPropertyName("type")]
     public string Type { get; set; } = "shortcut";
 
