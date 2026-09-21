@@ -1,9 +1,86 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="LilkaDeckApp.MainWindow"
-        Title="LilkaDeckApp">
-    Welcome to Avalonia!
+        Title="LilkaDeck Configurator" Width="1000" Height="450" MinWidth="950"
+        RequestedThemeVariant="Dark"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid ColumnDefinitions="1.5*, 1*">
+        
+        <!-- LEFT SIDE: Lilka Device Visualization -->
+        <Border Grid.Column="0" Background="#1E1E1E" Padding="20">
+            <Grid VerticalAlignment="Center" HorizontalAlignment="Center" 
+                  RowDefinitions="80, 80, 80" 
+                  ColumnDefinitions="80, 80, 80, 60, 80, 80, 80">
+                
+                <!-- Left D-Pad Cluster -->
+                <Button Grid.Row="0" Grid.Column="1" Tag="LeftUp" Click="OnDeckButtonClicked" Classes="deck-btn" Content="UP"/>
+                <Button Grid.Row="1" Grid.Column="0" Tag="LeftLeft" Click="OnDeckButtonClicked" Classes="deck-btn" Content="LEFT"/>
+                <Button Grid.Row="1" Grid.Column="2" Tag="LeftRight" Click="OnDeckButtonClicked" Classes="deck-btn" Content="RIGHT"/>
+                <Button Grid.Row="2" Grid.Column="1" Tag="LeftDown" Click="OnDeckButtonClicked" Classes="deck-btn" Content="DOWN"/>
+
+                <!-- Central Screen (Placeholder) -->
+                <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="3" Background="#111" CornerRadius="10" Margin="10,0"/>
+
+                <!-- Right Action Cluster -->
+                <Button Grid.Row="0" Grid.Column="5" Tag="RightUp" Click="OnDeckButtonClicked" Classes="deck-btn" Content="C"/>
+                <Button Grid.Row="1" Grid.Column="4" Tag="RightLeft" Click="OnDeckButtonClicked" Classes="deck-btn" Content="D"/>
+                <Button Grid.Row="1" Grid.Column="6" Tag="RightRight" Click="OnDeckButtonClicked" Classes="deck-btn" Content="A"/>
+                <Button Grid.Row="2" Grid.Column="5" Tag="RightDown" Click="OnDeckButtonClicked" Classes="deck-btn" Content="B"/>
+            </Grid>
+        </Border>
+
+        <!-- RIGHT SIDE: Settings Panel -->
+        <Border Grid.Column="1" Background="#2D2D30" Padding="20">
+            <StackPanel Spacing="15" x:Name="SettingsPanel">
+                <TextBlock Text="Налаштування профілю" FontSize="20" FontWeight="Bold"/>
+                
+                <!-- Profile Name Field (with length constraint) -->
+                <Grid ColumnDefinitions="Auto, *">
+                    <TextBlock Grid.Column="0" Text="Назва:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBox x:Name="ProfileNameTextBox" Grid.Column="1" Text="Main Deck" MaxLength="15" Watermark="До 15 символів"/>
+                </Grid>
+
+                <Separator Background="#555" Margin="0,5"/>
+                
+                <!-- Button Settings Panel (initially disabled) -->
+                <StackPanel x:Name="ButtonSettingsPanel" Spacing="15" IsEnabled="False">
+                    <TextBlock x:Name="SelectedButtonLabel" Text="Оберіть кнопку..." Foreground="#4CAF50" FontSize="16" FontWeight="SemiBold"/>
+                    
+                    <TextBlock Text="Іконка (PNG, JPG):"/>
+                    <Grid ColumnDefinitions="*, Auto">
+                        <TextBox x:Name="IconPathTextBox" Grid.Column="0" IsReadOnly="True" Watermark="Шлях до файлу..." Margin="0,0,10,0"/>
+                        <Button Grid.Column="1" Content="Огляд..." Click="OnBrowseIconClicked"/>
+                    </Grid>
+
+                    <TextBlock Text="Дії (через кому, напр: CTRL,SHIFT,M):" Margin="0,10,0,0"/>
+                    <TextBox x:Name="ActionsTextBox" Watermark="CTRL, ALT, T" TextChanged="OnActionsTextChanged"/>
+                </StackPanel>
+
+                <!-- Save JSON Button -->
+                <Button Content="Зберегти config.json" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" 
+                        Margin="0,30,0,0" Background="#007ACC" Click="OnGenerateJsonClicked"/>
+            </StackPanel>
+        </Border>
+
+    </Grid>
+
+    <Window.Styles>
+        <Style Selector="Button.deck-btn">
+            <Setter Property="Width" Value="70"/>
+            <Setter Property="Height" Value="70"/>
+            <Setter Property="CornerRadius" Value="35"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Background" Value="#333"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+        <Style Selector="Button.deck-btn:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#4CAF50"/>
+        </Style>
+    </Window.Styles>
+
 </Window>
