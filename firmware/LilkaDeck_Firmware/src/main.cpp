@@ -7,6 +7,7 @@
 #include "display/DisplayManager.h"
 #include "storage/StorageManager.h"
 #include "core/ProfileManager.h"
+#include "core/SyncManager.h"
 
 USBHIDKeyboard Keyboard;
 ConfigManager configManager;
@@ -15,115 +16,13 @@ StorageManager storageManager;
 ProfileManager profileManager(configManager, storageManager, displayManager);
 InputManager inputManager(Keyboard, configManager, displayManager, profileManager);
 
-// --- SYNC STATE MACHINE VARIABLES ---
-bool isSyncing = false;
-unsigned long lastSyncTime = 0;
-uint8_t syncProfileId = 0;
-size_t expectedBytes = 0;
-size_t receivedBytes = 0;
-
-// --- NEW VARIABLES FOR SAFE BUFFERING ---
-static uint8_t chunkBuffer[256];
-static size_t chunkIndex = 0;
-static size_t currentChunkTarget = 0;
-
-void handleSerialCommands() {
-    if (isSyncing && expectedBytes > 0) {
-        // Reset state if the host PC is silent for more than 3 seconds
-        if (millis() - lastSyncTime > 3000) {
-            Serial.println("[ERR] Sync timeout! Resetting state.");
-            isSyncing = false;
-            expectedBytes = 0;
-            storageManager.closeFile();
-        }
-    }
-
-    if (!Serial.available()) return;
-
-    // BINARY RECEIVE MODE (Ping-Pong Protocol)
-    if (isSyncing && expectedBytes > 0) {
-        if (currentChunkTarget == 0) {
-            currentChunkTarget = expectedBytes - receivedBytes;
-            if (currentChunkTarget > 256) currentChunkTarget = 256;
-        }
-
-        // Read byte-by-byte from the USB buffer until the chunk is full
-        while (Serial.available() > 0 && chunkIndex < currentChunkTarget) {
-            chunkBuffer[chunkIndex++] = Serial.read();
-            lastSyncTime = millis(); // Update the watchdog timer
-        }
-
-        // If a FULL chunk (256 bytes or the remainder of the file) is collected
-        if (chunkIndex == currentChunkTarget) {
-            storageManager.writeChunk(chunkBuffer, chunkIndex);
-            receivedBytes += chunkIndex;
-            
-            // Reset target values for the next chunk
-            chunkIndex = 0;
-            currentChunkTarget = 0;
-
-            // Request the next chunk from the PC if the file is incomplete
-            if (receivedBytes < expectedBytes) {
-                Serial.println("ACK_CHUNK");
-            } else {
-                // Close the file if the transmission is complete
-                storageManager.closeFile();
-                expectedBytes = 0;
-                Serial.println("ACK_DONE");
-            }
-        }
-        return;
-    }
-
-    // TEXT COMMAND MODE
-    String cmd = Serial.readStringUntil('\n');
-    cmd.trim();
-    if (cmd.length() == 0) return;
-
-    lastSyncTime = millis();
-
-    if (cmd.startsWith("SYNC_START:")) {
-        syncProfileId = cmd.substring(11).toInt();
-        isSyncing = true;
-        expectedBytes = 0;
-        
-        String dir = "/profile_" + String(syncProfileId);
-        storageManager.createDir(dir.c_str());
-        Serial.println("ACK_SYNC");
-    }
-    else if (isSyncing && cmd.startsWith("FILE_START:")) {
-        int firstColon = cmd.indexOf(':');
-        int secondColon = cmd.indexOf(':', firstColon + 1);
-        
-        String fileName = cmd.substring(firstColon + 1, secondColon);
-        expectedBytes = cmd.substring(secondColon + 1).toInt();
-        receivedBytes = 0;
-        
-        chunkIndex = 0; // Reset the buffer
-        currentChunkTarget = 0;
-        
-        String filePath = "/profile_" + String(syncProfileId) + "/" + fileName;
-        storageManager.openFileForWrite(filePath.c_str());
-        
-        Serial.println("ACK_FILE");
-    }
-    else if (isSyncing && cmd == "SYNC_END") {
-        isSyncing = false;
-        expectedBytes = 0;
-        Serial.println("ACK_END");
-        
-        // Force refresh UI
-        profileManager.loadProfile(syncProfileId);
-    }
-}
+SyncManager syncManager(storageManager, profileManager);
 
 void setup() {
     pinMode(46, OUTPUT);
     digitalWrite(46, LOW);
 
-    Serial.begin(115200);
-    // VERY IMPORTANT: Prevent text parser from blocking the main loop
-    Serial.setTimeout(50); 
+    syncManager.begin();
     
     Serial.println("\n--- LILKA BOOT SEQUENCE START ---");
 
@@ -157,10 +56,9 @@ void setup() {
 }
 
 void loop() {
-    handleSerialCommands();
+    syncManager.update();
     
-    // Block physical button triggers while flashing new configs to SD
-    if (!isSyncing) {
+    if (!syncManager.isBusy()) {
         inputManager.update();
         delay(1);
     }
