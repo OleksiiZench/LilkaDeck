@@ -20,7 +20,10 @@ public:
 
     void drawIcon(IconPosition pos, uint16_t* imageBuffer);
     void showBootScreen();
-    void setIconPressed(IconPosition pos, bool isPressed);
+    
+    // Now requires a dynamic color parameter instead of using a hardcoded value
+    void setIconPressed(IconPosition pos, bool isPressed, uint16_t color);
+    
     void drawProfileName(const String& name);
 
 private:

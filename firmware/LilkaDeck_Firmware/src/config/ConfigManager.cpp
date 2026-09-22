@@ -1,6 +1,6 @@
 #include "config/ConfigManager.h"
 
-ConfigManager::ConfigManager() {}
+ConfigManager::ConfigManager() : _activeColor(0x07FF) {} // Default to Cyan if not set
 
 bool ConfigManager::loadConfig(const String& jsonString) {
     JsonDocument doc;
@@ -15,6 +15,10 @@ bool ConfigManager::loadConfig(const String& jsonString) {
     _buttons.clear();
 
     _profileName = doc["profileName"] | "Profile";
+    
+    // Parse the global active color from JSON. Default to Cyan (#00FFFF) if missing.
+    String colorHex = doc["activeColor"] | "#00FFFF";
+    _activeColor = hexToRGB565(colorHex);
 
     JsonObject buttons = doc["buttons"];
     for (JsonPair kv : buttons) {
@@ -42,9 +46,12 @@ const std::map<IconPosition, ButtonConfig>& ConfigManager::getButtons() const {
     return _buttons;
 }
 
-String ConfigManager::getProfileName() const
-{
+String ConfigManager::getProfileName() const {
     return _profileName;
+}
+
+uint16_t ConfigManager::getActiveColor() const {
+    return _activeColor;
 }
 
 IconPosition ConfigManager::stringToPosition(const String& posStr) {
@@ -57,4 +64,29 @@ IconPosition ConfigManager::stringToPosition(const String& posStr) {
     if (posStr == "RightRight") return IconPosition::RightRight;
     if (posStr == "RightDown") return IconPosition::RightDown;
     return IconPosition::LeftUp; // Fallback
+}
+
+uint16_t ConfigManager::hexToRGB565(const String& hex) {
+    String cleanHex = hex;
+    
+    // Remove the leading hash if it exists
+    if (cleanHex.startsWith("#")) {
+        cleanHex = cleanHex.substring(1);
+    }
+    
+    // Fallback to Cyan if the hex string is invalid
+    if (cleanHex.length() != 6) {
+        return 0x07FF; 
+    }
+
+    // Parse the 24-bit RGB integer from the hex string
+    long rgb = strtol(cleanHex.c_str(), nullptr, 16);
+    
+    // Extract individual 8-bit color channels
+    uint8_t r = (rgb >> 16) & 0xFF;
+    uint8_t g = (rgb >> 8) & 0xFF;
+    uint8_t b = rgb & 0xFF;
+
+    // Bit-shift to compress 24-bit RGB (8-8-8) down to 16-bit RGB565 (5-6-5)
+    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }

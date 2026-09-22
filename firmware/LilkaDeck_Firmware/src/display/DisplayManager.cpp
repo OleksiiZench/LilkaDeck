@@ -75,8 +75,7 @@ void DisplayManager::drawIcon(IconPosition pos, uint16_t* imageBuffer) {
     _tft.pushImage(x, y, 64, 64, imageBuffer);
 }
 
-void DisplayManager::showBootScreen()
-{
+void DisplayManager::showBootScreen() {
     clear();
 
     _tft.setTextDatum(MC_DATUM);
@@ -92,24 +91,21 @@ void DisplayManager::showBootScreen()
     _tft.drawString("Loading configuration...", _tft.width() / 2, _tft.height() / 2 + 25);
 }
 
-void DisplayManager::setIconPressed(IconPosition pos, bool isPressed) {
+void DisplayManager::setIconPressed(IconPosition pos, bool isPressed, uint16_t color) {
     int32_t x, y;
     getIconCoordinates(pos, x, y);
 
-    // uint16_t activeColor = _tft.color565(220, 50, 50);
-    uint16_t activeColor = TFT_CYAN;
-
-    uint16_t color = isPressed ? activeColor : TFT_BLACK;
+    // Apply the dynamic color passed from the ConfigManager, or hide the border if released
+    uint16_t drawColor = isPressed ? color : TFT_BLACK;
 
     _tft.startWrite();
     for (int i = 2; i <= 3; i++) {
-        _tft.drawRoundRect(x - i, y - i, 64 + (i * 2), 64 + (i * 2), 4, color);
+        _tft.drawRoundRect(x - i, y - i, 64 + (i * 2), 64 + (i * 2), 4, drawColor);
     }
     _tft.endWrite();
 }
 
-void DisplayManager::drawProfileName(const String &name)
-{
+void DisplayManager::drawProfileName(const String &name) {
     _tft.fillRect(0, 224, 280, 16, TFT_BLACK);
     
     _tft.setTextDatum(BC_DATUM);

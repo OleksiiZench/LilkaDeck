@@ -73,8 +73,8 @@ void InputManager::update() {
                     if (getIconPositionForButton(btn.id, pos)) {
                         Serial.printf("[INPUT] Pressed GPIO %d (Macro triggered)\n", btn.pin);
                         
-                        // Execute immediate visual feedback (green border)
-                        _displayManager.setIconPressed(pos, true);
+                        // Execute immediate visual feedback using the dynamic color from JSON
+                        _displayManager.setIconPressed(pos, true, _configManager.getActiveColor());
 
                         const auto& configuredButtons = _configManager.getButtons();
                         auto it = configuredButtons.find(pos);
@@ -117,8 +117,8 @@ void InputManager::update() {
                     
                     IconPosition pos;
                     if (getIconPositionForButton(btn.id, pos)) {
-                        // Remove visual feedback
-                        _displayManager.setIconPressed(pos, false);
+                        // Remove visual feedback, passing the active color to maintain method signature
+                        _displayManager.setIconPressed(pos, false, _configManager.getActiveColor());
                     }
                     
                     // Globally clear HID report to prevent persistent phantom keystrokes on the host OS

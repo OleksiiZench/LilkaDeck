@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="LilkaDeckApp.MainWindow"
-        Title="LilkaDeck Configurator" Width="1000" Height="600" MinWidth="950"
+        Title="LilkaDeck Configurator" Width="1000" Height="650" MinWidth="950"
         RequestedThemeVariant="Dark"
         WindowStartupLocation="CenterScreen">
 
@@ -52,9 +52,13 @@
 
                 <!-- 2. Global Profile Settings -->
                 <TextBlock Text="Налаштування профілю" FontSize="20" FontWeight="Bold"/>
-                <Grid ColumnDefinitions="Auto, *">
-                    <TextBlock Grid.Column="0" Text="Назва:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <TextBox x:Name="ProfileNameTextBox" Grid.Column="1" Text="Main Deck" MaxLength="15" PlaceholderText="До 15 символів"/>
+                <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto, Auto">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Назва:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                    <TextBox x:Name="ProfileNameTextBox" Grid.Row="0" Grid.Column="1" Text="Main Deck" MaxLength="15" PlaceholderText="До 15 символів" Margin="0,0,0,10"/>
+                    
+                    <!-- NEW: Color picker for the active button border feedback -->
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Колір відгуку:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <ColorPicker x:Name="ActiveColorPicker" Grid.Row="1" Grid.Column="1" Color="#00FFFF" HorizontalAlignment="Left"/>
                 </Grid>
 
                 <Separator Background="#555" Margin="0,5"/>

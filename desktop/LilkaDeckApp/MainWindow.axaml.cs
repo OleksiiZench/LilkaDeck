@@ -177,8 +177,16 @@ public partial class MainWindow : Window
             SyncProgressBar.Value = 0;
             SyncStatusText.Foreground = SolidColorBrush.Parse("#4CAF50");
             
+            // Format the selected Color Picker value into a standard HEX string (#RRGGBB)
+            string hexColor = $"#{ActiveColorPicker.Color.R:X2}{ActiveColorPicker.Color.G:X2}{ActiveColorPicker.Color.B:X2}";
+
             // 1. Build the configuration model for JSON serialization
-            var output = new OutputConfig { ProfileName = ProfileNameTextBox.Text ?? "Profile" };
+            var output = new OutputConfig 
+            { 
+                ProfileName = ProfileNameTextBox.Text ?? "Profile",
+                ActiveColor = hexColor
+            };
+            
             var filesToSend = new Dictionary<string, string>(); // Dictionary: [Filename on SD] -> [Local path on PC]
 
             foreach (var kvp in _deckConfigs)
@@ -409,7 +417,15 @@ public partial class MainWindow : Window
     /// </summary>
     private async void OnGenerateJsonClicked(object? sender, RoutedEventArgs e)
     {
-        var output = new OutputConfig { ProfileName = ProfileNameTextBox.Text ?? "Profile" };
+        // Format the selected Color Picker value into a standard HEX string (#RRGGBB)
+        string hexColor = $"#{ActiveColorPicker.Color.R:X2}{ActiveColorPicker.Color.G:X2}{ActiveColorPicker.Color.B:X2}";
+
+        var output = new OutputConfig 
+        { 
+            ProfileName = ProfileNameTextBox.Text ?? "Profile",
+            ActiveColor = hexColor
+        };
+        
         foreach (var kvp in _deckConfigs)
         {
             if (!string.IsNullOrWhiteSpace(kvp.Value.IconPath) || !string.IsNullOrWhiteSpace(kvp.Value.Actions))
@@ -459,6 +475,10 @@ public class OutputConfig
 {
     [JsonPropertyName("profileName")]
     public string ProfileName { get; set; } = "Profile";
+
+    // Global active color property. Included in JSON serialization.
+    [JsonPropertyName("activeColor")]
+    public string ActiveColor { get; set; } = "#00FFFF"; 
 
     [JsonPropertyName("buttons")]
     public Dictionary<string, OutputButton> Buttons { get; set; } = new();
