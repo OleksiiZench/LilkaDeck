@@ -3,43 +3,36 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Media;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text.Json;
 using System.IO;
 using System.IO.Ports;
 using System.Diagnostics;
-using LilkaDeckApp.Models;
 using LilkaDeckApp.Services;
 
 namespace LilkaDeckApp;
 
 public partial class MainWindow : Window
 {
-    private readonly Dictionary<string, ButtonConfig> _deckConfigs = new();
     private string _currentSelectedPosition = "";
 
-    // Injected communication service
+    // Injected services
     private readonly LilkaCommunicationService _comService;
+    private readonly ProfileDataService _profileData;
 
     public MainWindow()
     {
         InitializeComponent();
 
+        _profileData = new ProfileDataService();
         _comService = new LilkaCommunicationService();
+
         _comService.OnExecuteRequested += HandleExecuteRequest;
         _comService.OnLogMessage += HandleLogMessage;
         _comService.OnError += HandleError;
 
-        // Initialize empty configurations
-        string[] positions = { "LeftUp", "LeftLeft", "LeftRight", "LeftDown", "RightUp", "RightLeft", "RightRight", "RightDown" };
-        foreach (var pos in positions)
-        {
-            _deckConfigs[pos] = new ButtonConfig();
-        }
-
         LoadAvailablePorts();
     }
+
+    // --- COM PORT CONNECTION ---
 
     private void LoadAvailablePorts()
     {
@@ -93,6 +86,8 @@ public partial class MainWindow : Window
         }
     }
 
+    // --- SYNCHRONIZATION ---
+
     private async void OnSyncButtonClicked(object? sender, RoutedEventArgs e)
     {
         if (!_comService.IsConnected) return;
@@ -103,47 +98,20 @@ public partial class MainWindow : Window
             SyncProgressBar.Value = 0;
             SyncStatusText.Foreground = SolidColorBrush.Parse("#4CAF50");
 
-            // Prepare Configuration
+            // 1. Get formatted values from UI
             string hexColor = $"#{ActiveColorPicker.Color.R:X2}{ActiveColorPicker.Color.G:X2}{ActiveColorPicker.Color.B:X2}";
-            var output = new OutputConfig
-            {
-                ProfileName = ProfileNameTextBox.Text ?? "Profile",
-                ActiveColor = hexColor
-            };
-            var filesToSend = new Dictionary<string, string>();
-
-            foreach (var kvp in _deckConfigs)
-            {
-                if (!string.IsNullOrWhiteSpace(kvp.Value.IconPath) || !string.IsNullOrWhiteSpace(kvp.Value.Actions))
-                {
-                    var actionList = kvp.Value.ActionType == "shortcut"
-                        ? kvp.Value.Actions.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList()
-                        : new List<string> { kvp.Value.Actions.Trim() };
-
-                    output.Buttons[kvp.Key] = new OutputButton
-                    {
-                        Icon = kvp.Value.IconPath,
-                        Type = kvp.Value.ActionType,
-                        Action = actionList
-                    };
-
-                    if (!string.IsNullOrWhiteSpace(kvp.Value.IconFullPath) && File.Exists(kvp.Value.IconFullPath))
-                    {
-                        filesToSend[kvp.Value.IconPath] = kvp.Value.IconFullPath;
-                    }
-                }
-            }
-
-            string jsonString = JsonSerializer.Serialize(output, new JsonSerializerOptions { WriteIndented = true });
-            byte[] jsonBytes = System.Text.Encoding.UTF8.GetBytes(jsonString);
+            string profileName = ProfileNameTextBox.Text ?? "Profile";
             int profileId = (int)(ProfileIdSpinner.Value ?? 0);
 
-            // Progress handlers to update UI from background tasks
+            // 2. Delegate payload building to the Data Service
+            var payload = _profileData.BuildSyncPayload(profileName, hexColor);
+
+            // 3. Setup progress tracking callbacks
             var progress = new Progress<int>(percent => SyncProgressBar.Value = percent);
             var status = new Progress<string>(msg => SyncStatusText.Text = msg);
 
-            // Execute Sync via Service
-            await _comService.SyncDataAsync(profileId, jsonBytes, filesToSend, progress, status);
+            // 4. Execute Sync
+            await _comService.SyncDataAsync(profileId, payload.jsonBytes, payload.filesToSend, progress, status);
 
             SyncStatusText.Text = "Синхронізація успішна!";
         }
@@ -190,7 +158,9 @@ public partial class MainWindow : Window
             ButtonSettingsPanel.IsEnabled = true;
             SelectedButtonLabel.Text = $"Редагування: {position}";
 
-            var config = _deckConfigs[position];
+            // Fetch state from Data Service
+            var config = _profileData.GetConfig(position);
+
             IconPathTextBox.Text = config.IconPath;
             ActionsTextBox.Text = config.Actions;
 
@@ -206,7 +176,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(_currentSelectedPosition)) return;
         if (ActionTypeComboBox.SelectedItem is ComboBoxItem item && item.Tag is string type)
         {
-            _deckConfigs[_currentSelectedPosition].ActionType = type;
+            _profileData.UpdateConfig(_currentSelectedPosition, c => c.ActionType = type);
             UpdateActionHint(type);
         }
     }
@@ -229,7 +199,7 @@ public partial class MainWindow : Window
     {
         if (!string.IsNullOrEmpty(_currentSelectedPosition) && sender is TextBox tb)
         {
-            _deckConfigs[_currentSelectedPosition].Actions = tb.Text ?? "";
+            _profileData.UpdateConfig(_currentSelectedPosition, c => c.Actions = tb.Text ?? "");
         }
     }
 
@@ -256,13 +226,22 @@ public partial class MainWindow : Window
             if (!fileName.EndsWith(".raw"))
             {
                 rawOutputPath = Path.Combine(Path.GetDirectoryName(inputPath)!, Path.GetFileNameWithoutExtension(fileName) + ".raw");
-                try { ImageConverter.ConvertToRgb565Raw(inputPath, rawOutputPath); fileName = Path.GetFileName(rawOutputPath); }
+                try
+                {
+                    ImageConverter.ConvertToRgb565Raw(inputPath, rawOutputPath);
+                    fileName = Path.GetFileName(rawOutputPath);
+                }
                 catch (Exception ex) { Console.WriteLine($"Conversion Error: {ex.Message}"); }
             }
 
             IconPathTextBox.Text = fileName;
-            _deckConfigs[_currentSelectedPosition].IconPath = fileName;
-            _deckConfigs[_currentSelectedPosition].IconFullPath = rawOutputPath;
+
+            // Update state in Data Service
+            _profileData.UpdateConfig(_currentSelectedPosition, c =>
+            {
+                c.IconPath = fileName;
+                c.IconFullPath = rawOutputPath;
+            });
         }
     }
 
