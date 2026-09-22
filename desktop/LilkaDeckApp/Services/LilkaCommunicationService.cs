@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Ports;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace LilkaDeckApp.Services;
@@ -11,33 +11,109 @@ public class LilkaCommunicationService : IDisposable
 {
     private SerialPort? _serialPort;
     private TaskCompletionSource<string>? _ackTcs;
+    private CancellationTokenSource? _scannerCts;
+    private bool _isSyncingActive = false; // Блокує Heartbeat під час передачі файлів
 
-    // Events to notify the UI or system about background actions
     public event Action<string>? OnExecuteRequested;
     public event Action<string>? OnLogMessage;
     public event Action<Exception>? OnError;
 
-    public bool IsConnected => _serialPort != null && _serialPort.IsOpen;
+    // Нові події для UI
+    public event Action<string>? OnConnected;
+    public event Action? OnDisconnected;
+
+    public bool IsConnected { get; private set; }
     public string ConnectedPortName => _serialPort?.PortName ?? string.Empty;
 
-    /// <summary>
-    /// Attempts to open a Native USB CDC connection to the ESP32.
-    /// </summary>
-    public void Connect(string portName)
+    public void StartAutoScanner()
     {
-        Disconnect();
-
-        _serialPort = new SerialPort(portName, 115200) { ReadTimeout = 100 };
-        _serialPort.DtrEnable = true;
-        _serialPort.RtsEnable = true;
-        _serialPort.DataReceived += SerialPort_DataReceived;
-        _serialPort.Open();
+        _scannerCts?.Cancel();
+        _scannerCts = new CancellationTokenSource();
+        _ = ScanAndMonitorLoopAsync(_scannerCts.Token);
     }
 
-    /// <summary>
-    /// Safely closes the connection.
-    /// </summary>
+    private async Task ScanAndMonitorLoopAsync(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            if (!IsConnected)
+            {
+                // РЕЖИМ 1: ПОШУК ПРИСТРОЮ
+                string[] ports = SerialPort.GetPortNames();
+                foreach (var port in ports)
+                {
+                    if (token.IsCancellationRequested) break;
+                    if (await TryConnectAndPingAsync(port))
+                    {
+                        IsConnected = true;
+                        OnConnected?.Invoke(port);
+                        break; // Знайшли Лілку, зупиняємо пошук
+                    }
+                }
+            }
+            else if (!_isSyncingActive)
+            {
+                // РЕЖИМ 2: HEARTBEAT (Моніторинг з'єднання)
+                try
+                {
+                    _serialPort!.WriteLine("PING");
+                    if (!await WaitForAck("LILKA_PONG:v1.0", 1000))
+                    {
+                        throw new Exception("Heartbeat timeout"); // Немає пульсу
+                    }
+                }
+                catch
+                {
+                    Disconnect(); // Від'єднуємо і скидаємо статус
+                }
+            }
+
+            // Пауза 2 секунди між скануваннями / серцебиттями
+            await Task.Delay(2000, token);
+        }
+    }
+
+    private async Task<bool> TryConnectAndPingAsync(string portName)
+    {
+        try
+        {
+            _serialPort = new SerialPort(portName, 115200) { ReadTimeout = 100 };
+            _serialPort.DtrEnable = true;
+            _serialPort.RtsEnable = true;
+            _serialPort.DataReceived += SerialPort_DataReceived;
+            _serialPort.Open();
+
+            // Даємо платі 1.5 секунди на перезавантаження (через DTR)
+            await Task.Delay(1500);
+
+            _serialPort.WriteLine("PING");
+
+            // Якщо плата відповіла нашим PONG - це Лілка!
+            if (await WaitForAck("LILKA_PONG:v1.0", 1000))
+            {
+                return true;
+            }
+
+            // Це якийсь інший пристрій (наприклад, 3D принтер)
+            DisconnectInternal();
+            return false;
+        }
+        catch
+        {
+            DisconnectInternal();
+            return false;
+        }
+    }
+
     public void Disconnect()
+    {
+        if (!IsConnected) return;
+        IsConnected = false;
+        DisconnectInternal();
+        OnDisconnected?.Invoke(); // Сповіщаємо UI
+    }
+
+    private void DisconnectInternal()
     {
         if (_serialPort != null && _serialPort.IsOpen)
         {
@@ -62,7 +138,7 @@ public class LilkaCommunicationService : IDisposable
                 {
                     OnExecuteRequested?.Invoke(data.Substring(8).Trim());
                 }
-                else if (data.StartsWith("ACK_"))
+                else if (data.StartsWith("ACK_") || data.StartsWith("LILKA_PONG"))
                 {
                     _ackTcs?.TrySetResult(data);
                 }
@@ -72,50 +148,47 @@ public class LilkaCommunicationService : IDisposable
                 }
             }
         }
-        catch (TimeoutException) { /* Normal during read loops */ }
-        catch (Exception ex)
-        {
-            OnError?.Invoke(ex);
-        }
+        catch (TimeoutException) { }
+        catch (Exception ex) { OnError?.Invoke(ex); }
     }
 
-    /// <summary>
-    /// Executes the full Ping-Pong synchronization protocol.
-    /// Uses IProgress to safely update the UI thread.
-    /// </summary>
     public async Task SyncDataAsync(int profileId, byte[] jsonBytes, Dictionary<string, string> filesToSend, IProgress<int> progress, IProgress<string> status)
     {
         if (!IsConnected) throw new InvalidOperationException("Not connected to Lilka.");
 
-        int totalFiles = 1 + filesToSend.Count;
-        int currentFile = 0;
-
-        // 1. Start Sync
-        status.Report($"Запуск (Профіль {profileId})...");
-        _serialPort!.WriteLine($"SYNC_START:{profileId}");
-        if (!await WaitForAck("ACK_SYNC", 3000)) throw new Exception("Лілка не відповіла на SYNC_START");
-
-        // 2. Send JSON
-        status.Report("Відправка config.json...");
-        await SendFileChunksAsync("config.json", jsonBytes);
-        currentFile++;
-        progress.Report((currentFile * 100) / totalFiles);
-
-        // 3. Send Images
-        foreach (var file in filesToSend)
+        _isSyncingActive = true; // Ставимо Heartbeat на паузу
+        try
         {
-            status.Report($"Відправка {file.Key}...");
-            byte[] imgBytes = await File.ReadAllBytesAsync(file.Value);
-            await SendFileChunksAsync(file.Key, imgBytes);
+            int totalFiles = 1 + filesToSend.Count;
+            int currentFile = 0;
 
+            status.Report($"Запуск (Профіль {profileId})...");
+            _serialPort!.WriteLine($"SYNC_START:{profileId}");
+            if (!await WaitForAck("ACK_SYNC", 3000)) throw new Exception("Лілка не відповіла на SYNC_START");
+
+            status.Report("Відправка config.json...");
+            await SendFileChunksAsync("config.json", jsonBytes);
             currentFile++;
             progress.Report((currentFile * 100) / totalFiles);
-        }
 
-        // 4. End Sync
-        status.Report("Перезавантаження UI Лілки...");
-        _serialPort.WriteLine("SYNC_END");
-        if (!await WaitForAck("ACK_END", 3000)) throw new Exception("Лілка не відповіла на SYNC_END");
+            foreach (var file in filesToSend)
+            {
+                status.Report($"Відправка {file.Key}...");
+                byte[] imgBytes = await File.ReadAllBytesAsync(file.Value);
+                await SendFileChunksAsync(file.Key, imgBytes);
+
+                currentFile++;
+                progress.Report((currentFile * 100) / totalFiles);
+            }
+
+            status.Report("Перезавантаження UI Лілки...");
+            _serialPort.WriteLine("SYNC_END");
+            if (!await WaitForAck("ACK_END", 3000)) throw new Exception("Лілка не відповіла на SYNC_END");
+        }
+        finally
+        {
+            _isSyncingActive = false; // Відновлюємо Heartbeat
+        }
     }
 
     private async Task SendFileChunksAsync(string fileName, byte[] data)
@@ -155,6 +228,7 @@ public class LilkaCommunicationService : IDisposable
 
     public void Dispose()
     {
-        Disconnect();
+        _scannerCts?.Cancel();
+        DisconnectInternal();
     }
 }

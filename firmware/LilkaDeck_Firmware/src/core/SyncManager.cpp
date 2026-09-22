@@ -77,6 +77,21 @@ void SyncManager::handleTextMode() {
 
     _lastSyncTime = millis();
 
+    if (cmd == "PING") {
+        Serial.println("LILKA_PONG:v1.0");
+        return;
+    }
+
+    if (cmd.startsWith("SYNC_START:")) {
+        _syncProfileId = cmd.substring(11).toInt();
+        _isSyncing = true;
+        _expectedBytes = 0;
+        
+        String dir = "/profile_" + String(_syncProfileId);
+        _storageManager.createDir(dir.c_str());
+        Serial.println("ACK_SYNC");
+    }
+
     if (cmd.startsWith("SYNC_START:")) {
         _syncProfileId = cmd.substring(11).toInt();
         _isSyncing = true;

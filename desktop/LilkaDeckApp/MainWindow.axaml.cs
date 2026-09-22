@@ -4,7 +4,6 @@ using Avalonia.Platform.Storage;
 using Avalonia.Media;
 using System;
 using System.IO;
-using System.IO.Ports;
 using System.Diagnostics;
 using LilkaDeckApp.Services;
 
@@ -13,8 +12,7 @@ namespace LilkaDeckApp;
 public partial class MainWindow : Window
 {
     private string _currentSelectedPosition = "";
-
-    // Injected services
+    
     private readonly LilkaCommunicationService _comService;
     private readonly ProfileDataService _profileData;
 
@@ -24,66 +22,43 @@ public partial class MainWindow : Window
 
         _profileData = new ProfileDataService();
         _comService = new LilkaCommunicationService();
-
+        
+        // Підписуємося на події автопідключення
+        _comService.OnConnected += HandleConnected;
+        _comService.OnDisconnected += HandleDisconnected;
+        
         _comService.OnExecuteRequested += HandleExecuteRequest;
         _comService.OnLogMessage += HandleLogMessage;
         _comService.OnError += HandleError;
 
-        LoadAvailablePorts();
+        // ВАЖЛИВО: Запускаємо фоновий сканер при старті додатку
+        _comService.StartAutoScanner();
     }
 
-    // --- COM PORT CONNECTION ---
+    // --- АВТОПІДКЛЮЧЕННЯ (UI UPDATES) ---
 
-    private void LoadAvailablePorts()
+    private void HandleConnected(string portName)
     {
-        string[] ports = SerialPort.GetPortNames();
-        ComPortComboBox.ItemsSource = ports;
-        if (ports.Length > 0) ComPortComboBox.SelectedIndex = 0;
-    }
-
-    private void OnRefreshPortsClicked(object? sender, RoutedEventArgs e) => LoadAvailablePorts();
-
-    private void OnConnectButtonClicked(object? sender, RoutedEventArgs e)
-    {
-        if (_comService.IsConnected)
+        // Всі оновлення UI повинні виконуватися в головному потоці
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
         {
-            _comService.Disconnect();
-            UpdateConnectionUI(false);
-        }
-        else if (ComPortComboBox.SelectedItem is string portName)
-        {
-            try
-            {
-                _comService.Connect(portName);
-                UpdateConnectionUI(true, portName);
-            }
-            catch (Exception ex)
-            {
-                HandleError(ex);
-            }
-        }
-    }
-
-    private void UpdateConnectionUI(bool isConnected, string portName = "")
-    {
-        if (isConnected)
-        {
-            ConnectButton.Content = "Відключити";
-            ConnectButton.Background = SolidColorBrush.Parse("#FF5252");
+            // Якщо у тебе ще залишилися ComboBox або ConnectButton у XAML, ти можеш їх сховати/заблокувати тут.
             ConnectionStatusText.Text = $"Статус: Підключено ({portName})";
             ConnectionStatusText.Foreground = SolidColorBrush.Parse("#4CAF50");
             SyncButton.IsEnabled = true;
             SyncStatusText.Text = "Готово до синхронізації";
-        }
-        else
+        });
+    }
+
+    private void HandleDisconnected()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
         {
-            ConnectButton.Content = "Підключити";
-            ConnectButton.Background = SolidColorBrush.Parse("#4CAF50");
-            ConnectionStatusText.Text = "Статус: Відключено";
-            ConnectionStatusText.Foreground = SolidColorBrush.Parse("#FF5252");
+            ConnectionStatusText.Text = "Статус: Пошук пристрою...";
+            ConnectionStatusText.Foreground = SolidColorBrush.Parse("#FFA500"); // Оранжевий колір пошуку
             SyncButton.IsEnabled = false;
             SyncStatusText.Text = "Очікування підключення...";
-        }
+        });
     }
 
     // --- SYNCHRONIZATION ---
