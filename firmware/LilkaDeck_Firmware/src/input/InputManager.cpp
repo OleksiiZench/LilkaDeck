@@ -71,7 +71,7 @@ void InputManager::update() {
                     IconPosition pos;
                     
                     if (getIconPositionForButton(btn.id, pos)) {
-                        Serial0.printf("[INPUT] Pressed GPIO %d (Macro triggered)\n", btn.pin);
+                        Serial.printf("[INPUT] Pressed GPIO %d (Macro triggered)\n", btn.pin);
                         
                         // Execute immediate visual feedback (green border)
                         _displayManager.setIconPressed(pos, true);
@@ -88,7 +88,7 @@ void InputManager::update() {
                                 // Request the companion desktop app to launch the specified target
                                 if (!actions.empty()) {
                                     String command = "EXECUTE:" + actions[0];
-                                    Serial0.println(command);
+                                    Serial.println(command);
                                 }
                             } else {
                                 // Default HID Keyboard emulation
@@ -103,17 +103,17 @@ void InputManager::update() {
                     } else {
                         // System button pressed (Select/Start)
                         if (btn.id == ButtonID::Select) {
-                            Serial0.println("[INPUT] Select -> Previous Profile");
+                            Serial.println("[INPUT] Select -> Previous Profile");
                             _profileManager.previousProfile();
                         } else if (btn.id == ButtonID::Start) {
-                            Serial0.println("[INPUT] Start -> Next Profile");
+                            Serial.println("[INPUT] Start -> Next Profile");
                             _profileManager.nextProfile();
                         }
                     }
                 } 
                 // Handle Rising Edge (Button Released)
                 else {
-                    Serial0.printf("[INPUT] Released GPIO %d\n", btn.pin);
+                    Serial.printf("[INPUT] Released GPIO %d\n", btn.pin);
                     
                     IconPosition pos;
                     if (getIconPositionForButton(btn.id, pos)) {
@@ -160,6 +160,6 @@ uint8_t InputManager::stringToKeycode(const String& keyStr) {
         return c;
     }
 
-    Serial0.printf("[WARN] Unmapped keycode string: %s\n", keyStr.c_str());
+    Serial.printf("[WARN] Unmapped keycode string: %s\n", keyStr.c_str());
     return 0;
 }

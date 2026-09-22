@@ -17,12 +17,26 @@ InputManager inputManager(Keyboard, configManager, displayManager, profileManage
 
 // --- SYNC STATE MACHINE VARIABLES ---
 bool isSyncing = false;
+unsigned long lastSyncTime = 0;
 uint8_t syncProfileId = 0;
 size_t expectedBytes = 0;
 size_t receivedBytes = 0;
 
 void handleSerialCommands() {
-    if (!Serial0.available()) return;
+    // --- НОВИЙ БЛОК: ЗАХИСТ ВІД ЗАВИСАНЬ ---
+    if (isSyncing && expectedBytes > 0) {
+        // Якщо комп'ютер мовчить більше 3 секунд - скидаємо стан
+        if (millis() - lastSyncTime > 3000) {
+            Serial.println("[ERR] Sync timeout! Resetting state.");
+            isSyncing = false;
+            expectedBytes = 0;
+            storageManager.closeFile();
+        }
+    }
+
+    if (!Serial.available()) return;
+
+    lastSyncTime = millis();
 
     // BINARY RECEIVE MODE
     if (isSyncing && expectedBytes > 0) {
@@ -33,11 +47,11 @@ void handleSerialCommands() {
         if (bytesToRead > CHUNK_SIZE) bytesToRead = CHUNK_SIZE;
         
         // Read strictly only what's currently in the hardware buffer
-        size_t available = Serial0.available();
+        size_t available = Serial.available();
         if (bytesToRead > available) bytesToRead = available;
 
         if (bytesToRead > 0) {
-            size_t readCount = Serial0.readBytes(buffer, bytesToRead);
+            size_t readCount = Serial.readBytes(buffer, bytesToRead);
             storageManager.writeChunk(buffer, readCount);
             receivedBytes += readCount;
 
@@ -45,14 +59,14 @@ void handleSerialCommands() {
             if (receivedBytes >= expectedBytes) {
                 storageManager.closeFile();
                 expectedBytes = 0;
-                Serial0.println("ACK_DONE");
+                Serial.println("ACK_DONE");
             }
         }
         return;
     }
 
     // TEXT COMMAND MODE
-    String cmd = Serial0.readStringUntil('\n');
+    String cmd = Serial.readStringUntil('\n');
     cmd.trim();
     if (cmd.length() == 0) return;
 
@@ -63,7 +77,7 @@ void handleSerialCommands() {
         
         String dir = "/profile_" + String(syncProfileId);
         storageManager.createDir(dir.c_str());
-        Serial0.println("ACK_SYNC");
+        Serial.println("ACK_SYNC");
     }
     else if (isSyncing && cmd.startsWith("FILE_START:")) {
         // cmd format: FILE_START:config.json:450
@@ -77,12 +91,12 @@ void handleSerialCommands() {
         String filePath = "/profile_" + String(syncProfileId) + "/" + fileName;
         storageManager.openFileForWrite(filePath.c_str());
         
-        Serial0.println("ACK_FILE");
+        Serial.println("ACK_FILE");
     }
     else if (isSyncing && cmd == "SYNC_END") {
         isSyncing = false;
         expectedBytes = 0;
-        Serial0.println("ACK_END");
+        Serial.println("ACK_END");
         
         // Force refresh UI to show newly downloaded assets
         profileManager.loadProfile(syncProfileId);
@@ -93,39 +107,39 @@ void setup() {
     pinMode(46, OUTPUT);
     digitalWrite(46, LOW);
 
-    Serial0.begin(115200);
+    Serial.begin(115200);
     // VERY IMPORTANT: Prevent text parser from blocking the main loop
-    Serial0.setTimeout(50); 
+    Serial.setTimeout(50); 
     
-    Serial0.println("\n--- LILKA BOOT SEQUENCE START ---");
+    Serial.println("\n--- LILKA BOOT SEQUENCE START ---");
 
     pinMode(BoardConfig::PIN_SD_CS, OUTPUT);
     digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
 
-    Serial0.println("[SYS] Starting USB HID...");
+    Serial.println("[SYS] Starting USB HID...");
     Keyboard.begin();
     USB.begin();
     delay(200);
 
-    Serial0.println("[SYS] Starting DisplayManager...");
+    Serial.println("[SYS] Starting DisplayManager...");
     displayManager.begin();
     displayManager.showBootScreen();
     delay(1000);
 
-    Serial0.println("[SYS] Starting StorageManager...");
+    Serial.println("[SYS] Starting StorageManager...");
     SPIClass& sharedSpiBus = displayManager.getSharedSpiBus();
 
     if (storageManager.begin(sharedSpiBus, BoardConfig::PIN_SD_CS)) {
-        Serial0.println("[SYS] Booting ProfileManager...");
+        Serial.println("[SYS] Booting ProfileManager...");
         profileManager.begin();
     } else {
-        Serial0.println("[ERR] SD Card mount failed.");
+        Serial.println("[ERR] SD Card mount failed.");
     }
 
-    Serial0.println("[SYS] Starting InputManager...");
+    Serial.println("[SYS] Starting InputManager...");
     inputManager.begin();
 
-    Serial0.println("[SYS] Lilka Stream Deck: Ready.");
+    Serial.println("[SYS] Lilka Stream Deck: Ready.");
 }
 
 void loop() {
@@ -134,7 +148,6 @@ void loop() {
     // Block physical button triggers while flashing new configs to SD
     if (!isSyncing) {
         inputManager.update();
+        delay(1);
     }
-    
-    delay(1);
 }

@@ -7,8 +7,8 @@ bool ConfigManager::loadConfig(const String& jsonString) {
     DeserializationError error = deserializeJson(doc, jsonString);
 
     if (error) {
-        Serial0.print("[CONFIG] JSON Parse Error: ");
-        Serial0.println(error.c_str());
+        Serial.print("[CONFIG] JSON Parse Error: ");
+        Serial.println(error.c_str());
         return false;
     }
 

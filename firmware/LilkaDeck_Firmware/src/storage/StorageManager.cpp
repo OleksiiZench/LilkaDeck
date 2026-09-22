@@ -5,18 +5,18 @@ StorageManager::StorageManager() : _isMounted(false) {}
 
 bool StorageManager::begin(SPIClass& spiBus, uint8_t csPin) {
     if (!SD.begin(csPin, spiBus)) {
-        Serial0.println("[ERROR] StorageManager: SD Mount Failed!");
+        Serial.println("[ERROR] StorageManager: SD Mount Failed!");
         return false;
     }
     
     uint8_t cardType = SD.cardType();
     if (cardType == CARD_NONE) {
-        Serial0.println("[ERROR] StorageManager: No SD card attached.");
+        Serial.println("[ERROR] StorageManager: No SD card attached.");
         return false;
     }
 
     _isMounted = true;
-    Serial0.printf("[SYS] StorageManager: SD Card Initialized. Type: %d\n", cardType);
+    Serial.printf("[SYS] StorageManager: SD Card Initialized. Type: %d\n", cardType);
     
     return true;
 }

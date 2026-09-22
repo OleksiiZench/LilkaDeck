@@ -75,6 +75,8 @@ public partial class MainWindow : Window
                 try
                 {
                     _serialPort = new SerialPort(portName, 115200) { ReadTimeout = 100 };
+                    _serialPort.DtrEnable = true; 
+                    _serialPort.RtsEnable = true;
                     _serialPort.DataReceived += OnSerialDataReceived;
                     _serialPort.Open();
 
@@ -239,7 +241,7 @@ public partial class MainWindow : Window
             offset += size;
             
             // Критично важлива затримка, щоб SD-карта на Лілці встигла записати дані
-            await Task.Delay(20); 
+            await Task.Delay(50); 
         }
 
         if (!await WaitForAck("ACK_DONE", 8000)) throw new Exception($"Немає ACK_DONE для {fileName}");

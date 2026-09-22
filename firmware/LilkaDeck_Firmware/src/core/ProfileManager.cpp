@@ -32,10 +32,10 @@ void ProfileManager::countProfiles() {
     
     // Safety Fallback: Prevent divide-by-zero in modulo operations if SD is empty/corrupt
     if (_profileCount == 0) {
-        Serial0.println("[PROFILE] Warning: No profiles found! Defaulting count to 1.");
+        Serial.println("[PROFILE] Warning: No profiles found! Defaulting count to 1.");
         _profileCount = 1;
     } else {
-        Serial0.printf("[PROFILE] Scan complete. Found %d active profiles.\n", _profileCount);
+        Serial.printf("[PROFILE] Scan complete. Found %d active profiles.\n", _profileCount);
     }
 }
 
@@ -50,7 +50,7 @@ void ProfileManager::previousProfile() {
 }
 
 void ProfileManager::loadProfile(uint8_t index) {
-    Serial0.printf("[PROFILE] Loading profile_%d...\n", index);
+    Serial.printf("[PROFILE] Loading profile_%d...\n", index);
     
     String folderPath = "/profile_" + String(index);
     String configPath = folderPath + "/config.json";
@@ -79,8 +79,8 @@ void ProfileManager::loadProfile(uint8_t index) {
                 _display.drawIcon(pos, rgb565Data);
             }
         }
-        Serial0.println("[PROFILE] UI loaded successfully.");
+        Serial.println("[PROFILE] UI loaded successfully.");
     } else {
-        Serial0.printf("[ERR] Failed to load %s\n", configPath.c_str());
+        Serial.printf("[ERR] Failed to load %s\n", configPath.c_str());
     }
 }

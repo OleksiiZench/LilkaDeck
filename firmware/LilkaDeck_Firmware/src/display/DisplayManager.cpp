@@ -45,7 +45,7 @@ void DisplayManager::begin() {
     // Enable the backlight now that the GRAM is fully sanitized
     digitalWrite(PIN_BLK, HIGH);
     
-    Serial0.println("[TFT] Display initialized with full hardware GRAM wipe.");
+    Serial.println("[TFT] Display initialized with full hardware GRAM wipe.");
 }
 
 void DisplayManager::clear() {
