@@ -14,27 +14,41 @@ using System.Threading.Tasks;
 
 namespace LilkaDeckApp;
 
+/// <summary>
+/// Local model for storing the settings of each button in the desktop application's memory.
+/// </summary>
 public class ButtonConfig
 {
     public string IconPath { get; set; } = "";
-    public string IconFullPath { get; set; } = ""; // NEW: Зберігаємо повний шлях на ПК для синхронізації
+    
+    // Full path to the generated .raw file on the computer. 
+    // Used for reading bytes during cable synchronization.
+    public string IconFullPath { get; set; } = ""; 
+    
     public string ActionType { get; set; } = "shortcut";
     public string Actions { get; set; } = "";
 }
 
 public partial class MainWindow : Window
 {
+    // Dictionary for storing button configurations, where the key is the physical button position (e.g., "LeftUp").
     private readonly Dictionary<string, ButtonConfig> _deckConfigs = new();
+    
+    // The current button selected by the user for editing in the UI.
     private string _currentSelectedPosition = "";
+    
+    // Object for working with the virtual COM port (USB CDC).
     private SerialPort? _serialPort;
     
-    // NEW: Допоміжний об'єкт для асинхронного очікування відповідей (ACK) від Лілки
+    // Helper object to convert events (DataReceived) into asynchronous tasks (Task).
+    // Allows methods to wait for a specific response (ACK) from Lilka without blocking the UI.
     private TaskCompletionSource<string>? _ackTcs;
 
     public MainWindow()
     {
         InitializeComponent();
 
+        // Initialize empty configurations for all available macro pad buttons
         string[] positions = { "LeftUp", "LeftLeft", "LeftRight", "LeftDown", "RightUp", "RightLeft", "RightRight", "RightDown" };
         foreach (var pos in positions)
         {
@@ -44,6 +58,9 @@ public partial class MainWindow : Window
         LoadAvailablePorts();
     }
 
+    /// <summary>
+    /// Scans the system for active COM ports and adds them to the dropdown list.
+    /// </summary>
     private void LoadAvailablePorts()
     {
         string[] ports = SerialPort.GetPortNames();
@@ -53,10 +70,14 @@ public partial class MainWindow : Window
 
     private void OnRefreshPortsClicked(object? sender, RoutedEventArgs e) => LoadAvailablePorts();
 
+    /// <summary>
+    /// Handles connecting and disconnecting from the microcontroller via the Serial port.
+    /// </summary>
     private void OnConnectButtonClicked(object? sender, RoutedEventArgs e)
     {
         if (_serialPort != null && _serialPort.IsOpen)
         {
+            // Disconnection logic
             _serialPort.Close();
             _serialPort.Dispose();
             _serialPort = null;
@@ -70,13 +91,18 @@ public partial class MainWindow : Window
         }
         else
         {
+            // Connection logic
             if (ComPortComboBox.SelectedItem is string portName)
             {
                 try
                 {
                     _serialPort = new SerialPort(portName, 115200) { ReadTimeout = 100 };
+                    
+                    // CRITICAL FOR ESP32-S3 NATIVE USB: 
+                    // Hardware DTR and RTS lines must be active, otherwise the board will not open its input buffer.
                     _serialPort.DtrEnable = true; 
                     _serialPort.RtsEnable = true;
+                    
                     _serialPort.DataReceived += OnSerialDataReceived;
                     _serialPort.Open();
 
@@ -96,7 +122,10 @@ public partial class MainWindow : Window
         }
     }
 
-    // Змінений обробник Serial для підтримки протоколу ACK
+    /// <summary>
+    /// Background handler for incoming data from the microcontroller. 
+    /// Runs on a separate thread!
+    /// </summary>
     private void OnSerialDataReceived(object sender, SerialDataReceivedEventArgs e)
     {
         if (_serialPort == null || !_serialPort.IsOpen) return;
@@ -109,29 +138,35 @@ public partial class MainWindow : Window
                 
                 if (data.StartsWith("EXECUTE:"))
                 {
+                    // Process request to launch a program/script from Lilka
                     string target = data.Substring(8).Trim();
                     Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true });
                 }
                 else if (data.StartsWith("ACK_"))
                 {
-                    // Передаємо отриманий ACK у машину станів синхронізації
+                    // If this is a synchronization protocol acknowledgment signal, 
+                    // pass it to the TaskCompletionSource to unblock the asynchronous wait.
                     _ackTcs?.TrySetResult(data);
                 }
                 else if (data.Length > 0)
                 {
+                    // Helper output for debugging text messages from the firmware
                     Console.WriteLine($"[ESP32] {data}");
                 }
             }
         }
-        catch (TimeoutException) { /* Нормально при повільному читанні */ }
+        catch (TimeoutException) { /* Read timeout is normal, just ignore it */ }
         catch (Exception ex)
         {
             Console.WriteLine($"Serial Error: {ex.Message}");
         }
     }
 
-    // --- НОВА ЛОГІКА СИНХРОНІЗАЦІЇ ---
+    // --- SYNCHRONIZATION LOGIC (PING-PONG PROTOCOL) ---
 
+    /// <summary>
+    /// Main synchronization state machine. Generates JSON, collects files, and manages the sending process.
+    /// </summary>
     private async void OnSyncButtonClicked(object? sender, RoutedEventArgs e)
     {
         if (_serialPort == null || !_serialPort.IsOpen) return;
@@ -142,9 +177,9 @@ public partial class MainWindow : Window
             SyncProgressBar.Value = 0;
             SyncStatusText.Foreground = SolidColorBrush.Parse("#4CAF50");
             
-            // 1. Збираємо конфігурацію та списки файлів
+            // 1. Build the configuration model for JSON serialization
             var output = new OutputConfig { ProfileName = ProfileNameTextBox.Text ?? "Profile" };
-            var filesToSend = new Dictionary<string, string>(); // Назва файлу -> Повний шлях на ПК
+            var filesToSend = new Dictionary<string, string>(); // Dictionary: [Filename on SD] -> [Local path on PC]
 
             foreach (var kvp in _deckConfigs)
             {
@@ -163,6 +198,7 @@ public partial class MainWindow : Window
                         Action = actionList
                     };
 
+                    // Collect the list of images that need to be sent
                     if (!string.IsNullOrWhiteSpace(kvp.Value.IconFullPath) && File.Exists(kvp.Value.IconFullPath))
                     {
                         filesToSend[kvp.Value.IconPath] = kvp.Value.IconFullPath;
@@ -177,18 +213,18 @@ public partial class MainWindow : Window
             int totalFiles = 1 + filesToSend.Count;
             int currentFile = 0;
 
-            // 2. Ініціалізуємо старт синхронізації
+            // 2. Initialize connection (create profile folder on SD card)
             SyncStatusText.Text = $"Запуск (Профіль {profileId})...";
             _serialPort.WriteLine($"SYNC_START:{profileId}");
             if (!await WaitForAck("ACK_SYNC", 3000)) throw new Exception("Лілка не відповіла на SYNC_START");
 
-            // 3. Відправляємо config.json
+            // 3. Send the configuration text file
             SyncStatusText.Text = "Відправка config.json...";
             await SendFileToSerial("config.json", jsonBytes);
             currentFile++;
             SyncProgressBar.Value = (currentFile * 100) / totalFiles;
 
-            // 4. Відправляємо всі картинки .raw
+            // 4. Send all binary .raw images
             foreach (var file in filesToSend)
             {
                 SyncStatusText.Text = $"Відправка {file.Key}...";
@@ -199,7 +235,7 @@ public partial class MainWindow : Window
                 SyncProgressBar.Value = (currentFile * 100) / totalFiles;
             }
 
-            // 5. Завершуємо синхронізацію
+            // 5. Finish transmission and command Lilka to reload its UI
             SyncStatusText.Text = "Перезавантаження UI Лілки...";
             _serialPort.WriteLine("SYNC_END");
             if (!await WaitForAck("ACK_END", 3000)) throw new Exception("Лілка не відповіла на SYNC_END");
@@ -217,32 +253,43 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Asynchronously waits for a specific text response from the microcontroller with a timeout.
+    /// </summary>
     private async Task<bool> WaitForAck(string expectedAck, int timeoutMs)
     {
         _ackTcs = new TaskCompletionSource<string>();
         var timeoutTask = Task.Delay(timeoutMs);
+        
+        // Wait until Lilka sends an ACK, or until the timeout is reached
         var completedTask = await Task.WhenAny(_ackTcs.Task, timeoutTask);
         
         if (completedTask == timeoutTask) return false;
         return await _ackTcs.Task == expectedAck;
     }
 
+    /// <summary>
+    /// Sends a byte array to the microcontroller using a strict flow control protocol (Ping-Pong).
+    /// </summary>
     private async Task SendFileToSerial(string fileName, byte[] data)
     {
+        // Notify Lilka about the name and size of the incoming file
         _serialPort!.WriteLine($"FILE_START:{fileName}:{data.Length}");
         if (!await WaitForAck("ACK_FILE", 3000)) throw new Exception($"Немає ACK_FILE для {fileName}");
 
         int offset = 0;
-        int chunkSize = 256;
+        int chunkSize = 256; // Buffer size must strictly match the buffer on the ESP32 side
 
         while (offset < data.Length)
         {
             int size = Math.Min(chunkSize, data.Length - offset);
+            
+            // Send one block of bytes
             _serialPort.Write(data, offset, size);
             offset += size;
 
-            // Наш новий протокол: ПК не відправить наступні байти, 
-            // поки Лілка не підтвердить, що зберегла на SD попередні!
+            // PING-PONG Protocol: The PC does not send the next chunk until Lilka confirms 
+            // (ACK_CHUNK) that the previous chunk was successfully saved to the SD card.
             if (offset < data.Length)
             {
                 if (!await WaitForAck("ACK_CHUNK", 5000))
@@ -250,10 +297,11 @@ public partial class MainWindow : Window
             }
         }
 
+        // Wait for the final confirmation of file closure on the SD card side
         if (!await WaitForAck("ACK_DONE", 8000)) throw new Exception($"Немає ACK_DONE для {fileName}");
     }
 
-    // --- СТАРА ЛОГІКА ІНТЕРФЕЙСУ ---
+    // --- UI LOGIC ---
 
     private void OnDeckButtonClicked(object? sender, RoutedEventArgs e)
     {
@@ -267,6 +315,7 @@ public partial class MainWindow : Window
             IconPathTextBox.Text = config.IconPath;
             ActionsTextBox.Text = config.Actions;
 
+            // Temporarily unsubscribe from the event to avoid false triggers during programmatic value changes
             ActionTypeComboBox.SelectionChanged -= OnActionTypeChanged;
             ActionTypeComboBox.SelectedIndex = config.ActionType == "launch" ? 1 : 0;
             UpdateActionHint(config.ActionType);
@@ -306,6 +355,9 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Opens the image selection dialog. Converts the selected file to .raw (RGB565) format for the Lilka display.
+    /// </summary>
     private async void OnBrowseIconClicked(object? sender, RoutedEventArgs e)
     {
         if (string.IsNullOrEmpty(_currentSelectedPosition)) return;
@@ -329,6 +381,7 @@ public partial class MainWindow : Window
             string fileName = files[0].Name;
             string rawOutputPath = inputPath;
 
+            // If a standard image is selected, convert it to 16-bit RAW (RGB565)
             if (!fileName.EndsWith(".raw") && !fileName.EndsWith(".rgb565"))
             {
                 string rawFileName = Path.GetFileNameWithoutExtension(fileName) + ".raw";
@@ -347,15 +400,15 @@ public partial class MainWindow : Window
 
             IconPathTextBox.Text = fileName;
             _deckConfigs[_currentSelectedPosition].IconPath = fileName;
-            // NEW: Зберігаємо повний шлях для синхронізації по кабелю
             _deckConfigs[_currentSelectedPosition].IconFullPath = rawOutputPath; 
         }
     }
 
-    // Локальне збереження залишено як резервний варіант
+    /// <summary>
+    /// Local save of the JSON file. Serves for profile backups on the PC itself.
+    /// </summary>
     private async void OnGenerateJsonClicked(object? sender, RoutedEventArgs e)
     {
-        // ... (Код OnGenerateJsonClicked залишився без змін, як у твоїй версії) ...
         var output = new OutputConfig { ProfileName = ProfileNameTextBox.Text ?? "Profile" };
         foreach (var kvp in _deckConfigs)
         {
@@ -397,7 +450,11 @@ public partial class MainWindow : Window
     }
 }
 
-// Models
+// --- STRUCTURES FOR JSON SERIALIZATION ---
+
+/// <summary>
+/// Root model of the JSON configuration that will be saved to the microcontroller's SD card.
+/// </summary>
 public class OutputConfig
 {
     [JsonPropertyName("profileName")]
@@ -407,6 +464,9 @@ public class OutputConfig
     public Dictionary<string, OutputButton> Buttons { get; set; } = new();
 }
 
+/// <summary>
+/// Model of a single button for JSON.
+/// </summary>
 public class OutputButton
 {
     [JsonPropertyName("icon")]

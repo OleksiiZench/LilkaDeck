@@ -22,14 +22,14 @@ uint8_t syncProfileId = 0;
 size_t expectedBytes = 0;
 size_t receivedBytes = 0;
 
-// --- НОВІ ЗМІННІ ДЛЯ БЕЗПЕЧНОГО БУФЕРА ---
+// --- NEW VARIABLES FOR SAFE BUFFERING ---
 static uint8_t chunkBuffer[256];
 static size_t chunkIndex = 0;
 static size_t currentChunkTarget = 0;
 
 void handleSerialCommands() {
     if (isSyncing && expectedBytes > 0) {
-        // Якщо комп'ютер мовчить більше 3 секунд - скидаємо стан
+        // Reset state if the host PC is silent for more than 3 seconds
         if (millis() - lastSyncTime > 3000) {
             Serial.println("[ERR] Sync timeout! Resetting state.");
             isSyncing = false;
@@ -40,33 +40,33 @@ void handleSerialCommands() {
 
     if (!Serial.available()) return;
 
-    // BINARY RECEIVE MODE (Протокол Пінг-Понг)
+    // BINARY RECEIVE MODE (Ping-Pong Protocol)
     if (isSyncing && expectedBytes > 0) {
         if (currentChunkTarget == 0) {
             currentChunkTarget = expectedBytes - receivedBytes;
             if (currentChunkTarget > 256) currentChunkTarget = 256;
         }
 
-        // Зчитуємо побайтово все, що є в USB буфері, поки не заповнимо чанк
+        // Read byte-by-byte from the USB buffer until the chunk is full
         while (Serial.available() > 0 && chunkIndex < currentChunkTarget) {
             chunkBuffer[chunkIndex++] = Serial.read();
-            lastSyncTime = millis(); // Оновлюємо таймер
+            lastSyncTime = millis(); // Update the watchdog timer
         }
 
-        // Якщо ми зібрали ПОВНИЙ чанк (256 байт або залишок файлу)
+        // If a FULL chunk (256 bytes or the remainder of the file) is collected
         if (chunkIndex == currentChunkTarget) {
             storageManager.writeChunk(chunkBuffer, chunkIndex);
             receivedBytes += chunkIndex;
             
-            // Очищаємо цільові значення для наступного блоку
+            // Reset target values for the next chunk
             chunkIndex = 0;
             currentChunkTarget = 0;
 
-            // Якщо файл ще не весь, просимо ПК дати наступний шматок
+            // Request the next chunk from the PC if the file is incomplete
             if (receivedBytes < expectedBytes) {
                 Serial.println("ACK_CHUNK");
             } else {
-                // Якщо весь - закриваємо файл
+                // Close the file if the transmission is complete
                 storageManager.closeFile();
                 expectedBytes = 0;
                 Serial.println("ACK_DONE");
@@ -99,7 +99,7 @@ void handleSerialCommands() {
         expectedBytes = cmd.substring(secondColon + 1).toInt();
         receivedBytes = 0;
         
-        chunkIndex = 0; // Скидаємо буфер
+        chunkIndex = 0; // Reset the buffer
         currentChunkTarget = 0;
         
         String filePath = "/profile_" + String(syncProfileId) + "/" + fileName;
