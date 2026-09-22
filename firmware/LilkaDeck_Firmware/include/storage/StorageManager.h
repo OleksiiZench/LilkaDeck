@@ -12,6 +12,13 @@ public:
     bool readFileToBuffer(const char* path, uint8_t* buffer, size_t bufferSize);
     String readTextFile(const char *path);
 
+    // Sync Protocol Methods
+    bool createDir(const char* path);
+    bool openFileForWrite(const char* path);
+    bool writeChunk(const uint8_t* data, size_t len);
+    void closeFile();
+
 private:
     bool _isMounted;
+    File _activeWriteFile; // Triggers progressive binary write
 };
