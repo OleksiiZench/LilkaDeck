@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Ports;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace LilkaDeckApp.Services;
 
@@ -238,7 +239,6 @@ public class LilkaCommunicationService : IDisposable
         
         _serialPort!.WriteLine("GET_PROFILES");
         
-        // Чекаємо рядок типу PROFILES:0,1,2
         var timeoutTask = Task.Delay(2000);
         _ackTcs = new TaskCompletionSource<string>();
         
@@ -250,7 +250,10 @@ public class LilkaCommunicationService : IDisposable
         {
             string data = response.Substring(9).Trim();
             if (string.IsNullOrEmpty(data)) return Array.Empty<string>();
-            return data.Split(',');
+            
+            return data.Split(',')
+                       .OrderBy(id => int.Parse(id))
+                       .ToArray();
         }
         return Array.Empty<string>();
     }
