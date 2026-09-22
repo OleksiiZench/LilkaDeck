@@ -234,14 +234,20 @@ public partial class MainWindow : Window
 
         int offset = 0;
         int chunkSize = 256;
+
         while (offset < data.Length)
         {
             int size = Math.Min(chunkSize, data.Length - offset);
             _serialPort.Write(data, offset, size);
             offset += size;
-            
-            // Критично важлива затримка, щоб SD-карта на Лілці встигла записати дані
-            await Task.Delay(50); 
+
+            // Наш новий протокол: ПК не відправить наступні байти, 
+            // поки Лілка не підтвердить, що зберегла на SD попередні!
+            if (offset < data.Length)
+            {
+                if (!await WaitForAck("ACK_CHUNK", 5000))
+                    throw new Exception($"Лілка зависла на записі {fileName} (offset: {offset})");
+            }
         }
 
         if (!await WaitForAck("ACK_DONE", 8000)) throw new Exception($"Немає ACK_DONE для {fileName}");

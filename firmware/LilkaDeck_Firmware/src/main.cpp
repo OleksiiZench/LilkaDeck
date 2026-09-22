@@ -22,8 +22,12 @@ uint8_t syncProfileId = 0;
 size_t expectedBytes = 0;
 size_t receivedBytes = 0;
 
+// --- НОВІ ЗМІННІ ДЛЯ БЕЗПЕЧНОГО БУФЕРА ---
+static uint8_t chunkBuffer[256];
+static size_t chunkIndex = 0;
+static size_t currentChunkTarget = 0;
+
 void handleSerialCommands() {
-    // --- НОВИЙ БЛОК: ЗАХИСТ ВІД ЗАВИСАНЬ ---
     if (isSyncing && expectedBytes > 0) {
         // Якщо комп'ютер мовчить більше 3 секунд - скидаємо стан
         if (millis() - lastSyncTime > 3000) {
@@ -36,27 +40,33 @@ void handleSerialCommands() {
 
     if (!Serial.available()) return;
 
-    lastSyncTime = millis();
-
-    // BINARY RECEIVE MODE
+    // BINARY RECEIVE MODE (Протокол Пінг-Понг)
     if (isSyncing && expectedBytes > 0) {
-        const size_t CHUNK_SIZE = 256;
-        uint8_t buffer[CHUNK_SIZE];
-        
-        size_t bytesToRead = expectedBytes - receivedBytes;
-        if (bytesToRead > CHUNK_SIZE) bytesToRead = CHUNK_SIZE;
-        
-        // Read strictly only what's currently in the hardware buffer
-        size_t available = Serial.available();
-        if (bytesToRead > available) bytesToRead = available;
+        if (currentChunkTarget == 0) {
+            currentChunkTarget = expectedBytes - receivedBytes;
+            if (currentChunkTarget > 256) currentChunkTarget = 256;
+        }
 
-        if (bytesToRead > 0) {
-            size_t readCount = Serial.readBytes(buffer, bytesToRead);
-            storageManager.writeChunk(buffer, readCount);
-            receivedBytes += readCount;
+        // Зчитуємо побайтово все, що є в USB буфері, поки не заповнимо чанк
+        while (Serial.available() > 0 && chunkIndex < currentChunkTarget) {
+            chunkBuffer[chunkIndex++] = Serial.read();
+            lastSyncTime = millis(); // Оновлюємо таймер
+        }
 
-            // Did we finish the file?
-            if (receivedBytes >= expectedBytes) {
+        // Якщо ми зібрали ПОВНИЙ чанк (256 байт або залишок файлу)
+        if (chunkIndex == currentChunkTarget) {
+            storageManager.writeChunk(chunkBuffer, chunkIndex);
+            receivedBytes += chunkIndex;
+            
+            // Очищаємо цільові значення для наступного блоку
+            chunkIndex = 0;
+            currentChunkTarget = 0;
+
+            // Якщо файл ще не весь, просимо ПК дати наступний шматок
+            if (receivedBytes < expectedBytes) {
+                Serial.println("ACK_CHUNK");
+            } else {
+                // Якщо весь - закриваємо файл
                 storageManager.closeFile();
                 expectedBytes = 0;
                 Serial.println("ACK_DONE");
@@ -70,6 +80,8 @@ void handleSerialCommands() {
     cmd.trim();
     if (cmd.length() == 0) return;
 
+    lastSyncTime = millis();
+
     if (cmd.startsWith("SYNC_START:")) {
         syncProfileId = cmd.substring(11).toInt();
         isSyncing = true;
@@ -80,13 +92,15 @@ void handleSerialCommands() {
         Serial.println("ACK_SYNC");
     }
     else if (isSyncing && cmd.startsWith("FILE_START:")) {
-        // cmd format: FILE_START:config.json:450
         int firstColon = cmd.indexOf(':');
         int secondColon = cmd.indexOf(':', firstColon + 1);
         
         String fileName = cmd.substring(firstColon + 1, secondColon);
         expectedBytes = cmd.substring(secondColon + 1).toInt();
         receivedBytes = 0;
+        
+        chunkIndex = 0; // Скидаємо буфер
+        currentChunkTarget = 0;
         
         String filePath = "/profile_" + String(syncProfileId) + "/" + fileName;
         storageManager.openFileForWrite(filePath.c_str());
@@ -98,7 +112,7 @@ void handleSerialCommands() {
         expectedBytes = 0;
         Serial.println("ACK_END");
         
-        // Force refresh UI to show newly downloaded assets
+        // Force refresh UI
         profileManager.loadProfile(syncProfileId);
     }
 }
