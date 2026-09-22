@@ -2,19 +2,50 @@
 #include "config/BoardConfig.h"
 
 ProfileManager::ProfileManager(ConfigManager& config, StorageManager& storage, DisplayManager& display)
-    : _config(config), _storage(storage), _display(display), _currentProfile(0) {}
+    : _config(config), _storage(storage), _display(display), _currentProfile(0), _profileCount(1) {}
 
 void ProfileManager::begin() {
+    countProfiles(); // Dynamically count available profiles before loading
     loadProfile(_currentProfile);
 }
 
+// Scans the SD card sequentially (profile_0, profile_1, ...) to determine the total count
+void ProfileManager::countProfiles() {
+    _profileCount = 0;
+    
+    while (true) {
+        String configPath = "/profile_" + String(_profileCount) + "/config.json";
+        
+        // Isolate the SPI bus before interacting with the SD card
+        digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
+        
+        // Try to read the config. If it returns content, the profile exists.
+        String jsonConfig = _storage.readTextFile(configPath.c_str());
+        
+        if (jsonConfig.length() > 0) {
+            _profileCount++;
+        } else {
+            // Stop scanning as soon as a sequential profile folder is missing
+            break; 
+        }
+    }
+    
+    // Safety Fallback: Prevent divide-by-zero in modulo operations if SD is empty/corrupt
+    if (_profileCount == 0) {
+        Serial0.println("[PROFILE] Warning: No profiles found! Defaulting count to 1.");
+        _profileCount = 1;
+    } else {
+        Serial0.printf("[PROFILE] Scan complete. Found %d active profiles.\n", _profileCount);
+    }
+}
+
 void ProfileManager::nextProfile() {
-    _currentProfile = (_currentProfile + 1) % MAX_PROFILES;
+    _currentProfile = (_currentProfile + 1) % _profileCount;
     loadProfile(_currentProfile);
 }
 
 void ProfileManager::previousProfile() {
-    _currentProfile = (_currentProfile == 0) ? (MAX_PROFILES - 1) : (_currentProfile - 1);
+    _currentProfile = (_currentProfile == 0) ? (_profileCount - 1) : (_currentProfile - 1);
     loadProfile(_currentProfile);
 }
 

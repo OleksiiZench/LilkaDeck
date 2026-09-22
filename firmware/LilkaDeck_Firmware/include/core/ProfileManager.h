@@ -19,8 +19,10 @@ private:
     DisplayManager& _display;
     
     uint8_t _currentProfile;
-    static const uint8_t MAX_PROFILES = 4;
+    uint8_t _profileCount;
     
     static const size_t ICON_BUFFER_SIZE = 64 * 64 * 2;
     uint8_t _iconBuffer[ICON_BUFFER_SIZE] __attribute__((aligned(4)));
+
+    void countProfiles();
 };
