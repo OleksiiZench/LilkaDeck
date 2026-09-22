@@ -98,7 +98,7 @@ public class ProfileDataService
     }
 
     /// <summary>
-    /// Очищає поточний стан UI
+    /// Clears the current state of the UI
     /// </summary>
     public void ClearState()
     {
@@ -109,7 +109,7 @@ public class ProfileDataService
     }
 
     /// <summary>
-    /// Парсить JSON, отриманий з Лілки, і оновлює стан
+    /// Parses the JSON received from Lilka and updates the status
     /// </summary>
     public OutputConfig? LoadFromJson(string jsonContent)
     {
@@ -129,7 +129,7 @@ public class ProfileDataService
                         ? string.Join(", ", kvp.Value.Action)
                         : kvp.Value.Action.FirstOrDefault() ?? "";
 
-                    // Якщо картинка є в кеші, одразу прив'язуємо її
+                    // If the image is in the cache, we load it right away
                     string cachedImage = Path.Combine(CacheDirectory, kvp.Value.Icon);
                     if (File.Exists(cachedImage))
                     {
@@ -147,7 +147,7 @@ public class ProfileDataService
     }
 
     /// <summary>
-    /// Копіює вибрану картинку в кеш перед відправкою (щоб не втратити її)
+    /// Copies the selected image to the cache before sending it (so it won't be lost)
     /// </summary>
     public string CacheImage(string originalPath, string fileName)
     {

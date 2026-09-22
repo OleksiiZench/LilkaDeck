@@ -24,7 +24,7 @@ public partial class MainWindow : Window
         _profileData = new ProfileDataService();
         _comService = new LilkaCommunicationService();
 
-        // Підписуємося на події автопідключення
+        // Subscribe to auto-connect events
         _comService.OnConnected += HandleConnected;
         _comService.OnDisconnected += HandleDisconnected;
 
@@ -32,11 +32,10 @@ public partial class MainWindow : Window
         _comService.OnLogMessage += HandleLogMessage;
         _comService.OnError += HandleError;
 
-        // ВАЖЛИВО: Запускаємо фоновий сканер при старті додатку
+        // Launch the background scanner when the app starts
         _comService.StartAutoScanner();
     }
 
-    // --- НОВА СИСТЕМА ЛОГУВАННЯ ---
     private void AppLog(string message, bool isError = false)
     {
         Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
@@ -50,8 +49,6 @@ public partial class MainWindow : Window
         });
     }
 
-    // --- АВТОПІДКЛЮЧЕННЯ (UI UPDATES) ---
-
     private async void HandleConnected(string portName)
     {
         Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
@@ -63,7 +60,7 @@ public partial class MainWindow : Window
             AppLog("Завантаження конфігурації з Лілки...");
         });
 
-        // 1. Отримуємо список профілів з SD-карти
+        // Retrieve a list of profiles from the SD card
         string[] profiles = await _comService.GetProfilesListAsync();
 
         await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
@@ -150,7 +147,7 @@ public partial class MainWindow : Window
         });
     }
 
-    // --- LIVE PREVIEW КОЛЬОРУ ---
+    // --- LIVE COLOR PREVIEW ---
     private void OnActiveColorChanged(object? sender, ColorChangedEventArgs e)
     {
         if (_isLoadingProfile) return;
@@ -268,7 +265,7 @@ public partial class MainWindow : Window
 
         try
         {
-            // 2. Викачуємо config.json
+            // Download config.json
             byte[]? jsonBytes = await _comService.DownloadFileAsync(profileId, "config.json");
             if (jsonBytes != null)
             {
@@ -280,9 +277,9 @@ public partial class MainWindow : Window
                     ProfileNameTextBox.Text = config.ProfileName;
 
                     try { ActiveColorPicker.Color = Color.Parse(config.ActiveColor); }
-                    catch { /* Ігноруємо помилки парсингу кольору */ }
+                    catch { /* Ignore color parsing errors */ }
 
-                    // 3. Завантажуємо іконки, яких немає в локальному кеші
+                    // Load icons that aren't in the local cache
                     foreach (var kvp in config.Buttons)
                     {
                         if (!string.IsNullOrEmpty(kvp.Value.Icon))

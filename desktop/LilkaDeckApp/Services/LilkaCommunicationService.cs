@@ -13,13 +13,12 @@ public class LilkaCommunicationService : IDisposable
     private SerialPort? _serialPort;
     private TaskCompletionSource<string>? _ackTcs;
     private CancellationTokenSource? _scannerCts;
-    private bool _isSyncingActive = false; // Блокує Heartbeat під час передачі файлів
+    private bool _isSyncingActive = false; // Blocks Heartbeat during file transfers
 
     public event Action<string>? OnExecuteRequested;
     public event Action<string>? OnLogMessage;
     public event Action<Exception>? OnError;
 
-    // Нові події для UI
     public event Action<string>? OnConnected;
     public event Action? OnDisconnected;
 
@@ -39,7 +38,7 @@ public class LilkaCommunicationService : IDisposable
         {
             if (!IsConnected)
             {
-                // РЕЖИМ 1: ПОШУК ПРИСТРОЮ
+                // MODE 1: DEVICE SEARCH
                 string[] ports = SerialPort.GetPortNames();
                 foreach (var port in ports)
                 {
@@ -48,28 +47,28 @@ public class LilkaCommunicationService : IDisposable
                     {
                         IsConnected = true;
                         OnConnected?.Invoke(port);
-                        break; // Знайшли Лілку, зупиняємо пошук
+                        break; // We found Lilka, so we're calling off the search
                     }
                 }
             }
             else if (!_isSyncingActive)
             {
-                // РЕЖИМ 2: HEARTBEAT (Моніторинг з'єднання)
+                // MODE 2: HEARTBEAT (Connection Monitoring)
                 try
                 {
                     _serialPort!.WriteLine("PING");
                     if (!await WaitForAck("LILKA_PONG:v1.0", 1000))
                     {
-                        throw new Exception("Heartbeat timeout"); // Немає пульсу
+                        throw new Exception("Heartbeat timeout"); // No heartbeat
                     }
                 }
                 catch
                 {
-                    Disconnect(); // Від'єднуємо і скидаємо статус
+                    Disconnect(); // Disconnect and reset the status
                 }
             }
 
-            // Пауза 2 секунди між скануваннями / серцебиттями
+            // 2-second pause between scans / heartbeats
             await Task.Delay(2000, token);
         }
     }
@@ -84,18 +83,18 @@ public class LilkaCommunicationService : IDisposable
             _serialPort.DataReceived += SerialPort_DataReceived;
             _serialPort.Open();
 
-            // Даємо платі 1.5 секунди на перезавантаження (через DTR)
+            // Allow the board 1.5 seconds to reboot (via DTR)
             await Task.Delay(1500);
 
             _serialPort.WriteLine("PING");
 
-            // Якщо плата відповіла нашим PONG - це Лілка!
+            // If the board responded with our “PONG,” it's Lilka
             if (await WaitForAck("LILKA_PONG:v1.0", 1000))
             {
                 return true;
             }
 
-            // Це якийсь інший пристрій (наприклад, 3D принтер)
+            // This is some other device
             DisconnectInternal();
             return false;
         }
@@ -111,7 +110,7 @@ public class LilkaCommunicationService : IDisposable
         if (!IsConnected) return;
         IsConnected = false;
         DisconnectInternal();
-        OnDisconnected?.Invoke(); // Сповіщаємо UI
+        OnDisconnected?.Invoke();
     }
 
     private void DisconnectInternal()
@@ -157,7 +156,7 @@ public class LilkaCommunicationService : IDisposable
     {
         if (!IsConnected) throw new InvalidOperationException("Not connected to Lilka.");
 
-        _isSyncingActive = true; // Ставимо Heartbeat на паузу
+        _isSyncingActive = true; // Pause Heartbeat
         try
         {
             int totalFiles = 1 + filesToSend.Count;
@@ -188,7 +187,7 @@ public class LilkaCommunicationService : IDisposable
         }
         finally
         {
-            _isSyncingActive = false; // Відновлюємо Heartbeat
+            _isSyncingActive = false; // Restoring Heartbeat
         }
     }
 
@@ -263,17 +262,17 @@ public class LilkaCommunicationService : IDisposable
         if (!IsConnected) return;
         try 
         {
-            // Fire-and-forget відправка. Не чекаємо ACK, щоб не блокувати UI при швидкому перетягуванні палітри
+            // Fire-and-forget sending. We don't wait for an ACK so as not to block the UI when quickly dragging the palette
             _serialPort!.WriteLine($"SET_COLOR:{hexColor}");
         } 
-        catch { /* Ігноруємо помилки під час прев'ю */ }
+        catch { /* Ignore errors during preview */ }
     }
 
     public async Task<byte[]?> DownloadFileAsync(int profileId, string fileName)
     {
         if (!IsConnected) return null;
 
-        // Тимчасово відключаємо текстовий парсер, щоб він не зламався від бінарних даних картинки
+        // We're temporarily disabling the text parser so it doesn't crash when it encounters the image's binary data
         _serialPort!.DataReceived -= SerialPort_DataReceived;
         _isSyncingActive = true;
 
@@ -281,19 +280,19 @@ public class LilkaCommunicationService : IDisposable
         {
             _serialPort.WriteLine($"FILE_GET:{profileId}:{fileName}");
             
-            // Чекаємо підтвердження і розмір файлу
+            // Waiting for confirmation and the file size
             string response = "";
-            int retries = 20; // 2 секунди таймаут (20 * 100ms)
+            int retries = 20; // 2-second timeout (20 * 100 ms)
             while (retries-- > 0)
             {
                 try 
                 { 
                     response = _serialPort.ReadLine().Trim();
                     
-                    // Якщо дочекалися потрібної відповіді - виходимо з циклу
+                    // If we've received the desired response, we exit the loop
                     if (response.StartsWith("FILE_SEND_START:") || response == "ERR:FILE_NOT_FOUND") break;
                     
-                    // Якщо прилетів якийсь інший лог - просто виводимо його і слухаємо далі
+                    // If any other log arrives, we simply print it and continue listening
                     if (response.Length > 0) OnLogMessage?.Invoke($"[ESP32] {response}");
                 }
                 catch (TimeoutException) { }
@@ -306,7 +305,7 @@ public class LilkaCommunicationService : IDisposable
             byte[] buffer = new byte[size];
             int totalRead = 0;
             
-            // Читаємо сирі байти
+            // Read raw bytes
             while(totalRead < size)
             {
                 int read = _serialPort.BaseStream.Read(buffer, totalRead, size - totalRead);
@@ -318,7 +317,7 @@ public class LilkaCommunicationService : IDisposable
         finally
         {
             _isSyncingActive = false;
-            // Повертаємо текстовий парсер на місце
+            // Put the text parser back where it belongs
             _serialPort.DataReceived += SerialPort_DataReceived;
         }
     }
