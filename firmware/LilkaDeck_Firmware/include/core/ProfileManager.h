@@ -12,6 +12,7 @@ public:
     void loadProfile(uint8_t index);
     void nextProfile();
     void previousProfile();
+    void previewColor(const String& hexColor);
 
 private:
     ConfigManager& _config;

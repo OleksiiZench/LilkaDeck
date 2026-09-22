@@ -17,6 +17,7 @@ public:
     ConfigManager();
 
     bool loadConfig(const String& jsonString);
+    void setActiveColorHex(const String& hex); // НОВЕ
     const std::map<IconPosition, ButtonConfig>& getButtons() const;
     String getProfileName() const;
     

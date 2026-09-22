@@ -125,10 +125,10 @@ public class ProfileDataService
                 {
                     _deckConfigs[kvp.Key].IconPath = kvp.Value.Icon;
                     _deckConfigs[kvp.Key].ActionType = kvp.Value.Type;
-                    _deckConfigs[kvp.Key].Actions = kvp.Value.Type == "shortcut" 
-                        ? string.Join(", ", kvp.Value.Action) 
+                    _deckConfigs[kvp.Key].Actions = kvp.Value.Type == "shortcut"
+                        ? string.Join(", ", kvp.Value.Action)
                         : kvp.Value.Action.FirstOrDefault() ?? "";
-                        
+
                     // Якщо картинка є в кеші, одразу прив'язуємо її
                     string cachedImage = Path.Combine(CacheDirectory, kvp.Value.Icon);
                     if (File.Exists(cachedImage))

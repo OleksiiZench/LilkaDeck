@@ -12,7 +12,8 @@ namespace LilkaDeckApp;
 public partial class MainWindow : Window
 {
     private string _currentSelectedPosition = "";
-    
+    private bool _isLoadingProfile = false;
+
     private readonly LilkaCommunicationService _comService;
     private readonly ProfileDataService _profileData;
 
@@ -22,17 +23,31 @@ public partial class MainWindow : Window
 
         _profileData = new ProfileDataService();
         _comService = new LilkaCommunicationService();
-        
+
         // Підписуємося на події автопідключення
         _comService.OnConnected += HandleConnected;
         _comService.OnDisconnected += HandleDisconnected;
-        
+
         _comService.OnExecuteRequested += HandleExecuteRequest;
         _comService.OnLogMessage += HandleLogMessage;
         _comService.OnError += HandleError;
 
         // ВАЖЛИВО: Запускаємо фоновий сканер при старті додатку
         _comService.StartAutoScanner();
+    }
+
+    // --- НОВА СИСТЕМА ЛОГУВАННЯ ---
+    private void AppLog(string message, bool isError = false)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            string time = DateTime.Now.ToString("HH:mm:ss");
+            string prefix = isError ? "[ПОМИЛКА]" : "[ІНФО]";
+            string logLine = $"[{time}] {prefix} {message}\r\n";
+
+            LogTextBox.Text += logLine;
+            LogTextBox.CaretIndex = LogTextBox.Text?.Length ?? 0; // Автоматична прокрутка вниз
+        });
     }
 
     // --- АВТОПІДКЛЮЧЕННЯ (UI UPDATES) ---
@@ -43,21 +58,22 @@ public partial class MainWindow : Window
         {
             ConnectionStatusText.Text = $"Статус: Підключено ({portName})";
             ConnectionStatusText.Foreground = SolidColorBrush.Parse("#4CAF50");
-            SyncButton.IsEnabled = false; // Вимикаємо синхронізацію, поки качаємо дані
-            SyncStatusText.Text = "Завантаження конфігурації з Лілки...";
+            SyncButton.IsEnabled = false;
+            AppLog($"Підключено до порту {portName}");
+            AppLog("Завантаження конфігурації з Лілки...");
         });
 
         // 1. Отримуємо список профілів з SD-карти
         string[] profiles = await _comService.GetProfilesListAsync();
-        
+
         await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
         {
             ProfileIdComboBox.ItemsSource = profiles;
             if (profiles.Length > 0)
-                ProfileIdComboBox.SelectedIndex = 0; // Це автоматично викличе OnProfileSelectionChanged
+                ProfileIdComboBox.SelectedIndex = 0;
             else
-                SyncStatusText.Text = "Готово (профілі відсутні)";
-                
+                AppLog("Готово (профілі відсутні)");
+
             SyncButton.IsEnabled = true;
         });
     }
@@ -67,9 +83,9 @@ public partial class MainWindow : Window
         Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
         {
             ConnectionStatusText.Text = "Статус: Пошук пристрою...";
-            ConnectionStatusText.Foreground = SolidColorBrush.Parse("#FFA500"); // Оранжевий колір пошуку
+            ConnectionStatusText.Foreground = SolidColorBrush.Parse("#FFA500");
             SyncButton.IsEnabled = false;
-            SyncStatusText.Text = "Очікування підключення...";
+            AppLog("Пристрій відключено. Пошук...", true);
         });
     }
 
@@ -83,7 +99,6 @@ public partial class MainWindow : Window
         {
             SyncButton.IsEnabled = false;
             SyncProgressBar.Value = 0;
-            SyncStatusText.Foreground = SolidColorBrush.Parse("#4CAF50");
 
             // 1. Get formatted values from UI
             string hexColor = $"#{ActiveColorPicker.Color.R:X2}{ActiveColorPicker.Color.G:X2}{ActiveColorPicker.Color.B:X2}";
@@ -93,14 +108,14 @@ public partial class MainWindow : Window
             // 2. Delegate payload building to the Data Service
             var payload = _profileData.BuildSyncPayload(profileName, hexColor);
 
-            // 3. Setup progress tracking callbacks
+            // 3. Setup progress tracking callbacks (Тепер використовує AppLog)
             var progress = new Progress<int>(percent => SyncProgressBar.Value = percent);
-            var status = new Progress<string>(msg => SyncStatusText.Text = msg);
+            var status = new Progress<string>(msg => AppLog(msg));
 
             // 4. Execute Sync
             await _comService.SyncDataAsync(profileId, payload.jsonBytes, payload.filesToSend, progress, status);
 
-            SyncStatusText.Text = "Синхронізація успішна!";
+            AppLog("Синхронізація успішна!");
         }
         catch (Exception ex)
         {
@@ -119,11 +134,11 @@ public partial class MainWindow : Window
         Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
         {
             try { Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true }); }
-            catch (Exception ex) { Console.WriteLine($"Launch error: {ex.Message}"); }
+            catch (Exception ex) { AppLog($"Launch error: {ex.Message}", true); }
         });
     }
 
-    private void HandleLogMessage(string msg) => Console.WriteLine(msg);
+    private void HandleLogMessage(string msg) => AppLog(msg);
 
     private void HandleError(Exception ex)
     {
@@ -131,8 +146,17 @@ public partial class MainWindow : Window
         {
             ConnectionStatusText.Text = $"Помилка: {ex.Message}";
             ConnectionStatusText.Foreground = SolidColorBrush.Parse("#FF5252");
-            SyncStatusText.Text = "Синхронізацію перервано";
+            AppLog($"Синхронізацію перервано: {ex.Message}", true);
         });
+    }
+
+    // --- LIVE PREVIEW КОЛЬОРУ ---
+    private void OnActiveColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        if (_isLoadingProfile) return;
+
+        string hexColor = $"#{e.NewColor.R:X2}{e.NewColor.G:X2}{e.NewColor.B:X2}";
+        _comService.SendColorPreview(hexColor);
     }
 
     // --- UI EVENT HANDLERS (Deck buttons, ComboBoxes, File Picker) ---
@@ -218,7 +242,7 @@ public partial class MainWindow : Window
                     ImageConverter.ConvertToRgb565Raw(inputPath, rawOutputPath);
                     fileName = Path.GetFileName(rawOutputPath);
                 }
-                catch (Exception ex) { Console.WriteLine($"Conversion Error: {ex.Message}"); }
+                catch (Exception ex) { AppLog($"Conversion Error: {ex.Message}", true); }
             }
 
             IconPathTextBox.Text = fileName;
@@ -237,8 +261,10 @@ public partial class MainWindow : Window
         if (ProfileIdComboBox.SelectedItem is not string profileIdStr) return;
         if (!int.TryParse(profileIdStr, out int profileId)) return;
 
-        SyncStatusText.Text = $"Завантаження Профілю {profileId}...";
+        AppLog($"Завантаження Профілю {profileId}...");
         SyncButton.IsEnabled = false;
+
+        _isLoadingProfile = true;
 
         try
         {
@@ -252,8 +278,8 @@ public partial class MainWindow : Window
                 if (config != null)
                 {
                     ProfileNameTextBox.Text = config.ProfileName;
-                    
-                    try { ActiveColorPicker.Color = Color.Parse(config.ActiveColor); } 
+
+                    try { ActiveColorPicker.Color = Color.Parse(config.ActiveColor); }
                     catch { /* Ігноруємо помилки парсингу кольору */ }
 
                     // 3. Завантажуємо іконки, яких немає в локальному кеші
@@ -264,7 +290,7 @@ public partial class MainWindow : Window
                             string expectedCachePath = Path.Combine(_profileData.CacheDirectory, kvp.Value.Icon);
                             if (!File.Exists(expectedCachePath))
                             {
-                                SyncStatusText.Text = $"Завантаження {kvp.Value.Icon}...";
+                                AppLog($"Завантаження {kvp.Value.Icon}...");
                                 byte[]? iconBytes = await _comService.DownloadFileAsync(profileId, kvp.Value.Icon);
                                 if (iconBytes != null)
                                 {
@@ -276,7 +302,7 @@ public partial class MainWindow : Window
                     }
                 }
             }
-            SyncStatusText.Text = "Готово до синхронізації";
+            AppLog("Готово до синхронізації");
         }
         catch (Exception ex)
         {
@@ -284,9 +310,9 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _isLoadingProfile = false;
             SyncButton.IsEnabled = true;
-            
-            // Якщо якась кнопка була вибрана, оновлюємо поля в UI
+
             if (!string.IsNullOrEmpty(_currentSelectedPosition))
             {
                 OnDeckButtonClicked(new Button { Tag = _currentSelectedPosition }, new RoutedEventArgs());

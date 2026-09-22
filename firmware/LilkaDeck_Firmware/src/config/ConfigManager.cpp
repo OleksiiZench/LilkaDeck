@@ -42,6 +42,10 @@ bool ConfigManager::loadConfig(const String& jsonString) {
     return true;
 }
 
+void ConfigManager::setActiveColorHex(const String& hex) {
+    _activeColor = hexToRGB565(hex);
+}
+
 const std::map<IconPosition, ButtonConfig>& ConfigManager::getButtons() const {
     return _buttons;
 }

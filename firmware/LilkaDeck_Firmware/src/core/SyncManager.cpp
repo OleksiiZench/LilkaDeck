@@ -88,6 +88,12 @@ void SyncManager::handleTextMode() {
         return;
     }
 
+    if (cmd.startsWith("SET_COLOR:")) {
+        String hexColor = cmd.substring(10);
+        _profileManager.previewColor(hexColor);
+        return;
+    }
+
     if (cmd.startsWith("FILE_GET:")) {
         int firstColon = cmd.indexOf(':');
         int secondColon = cmd.indexOf(':', firstColon + 1);

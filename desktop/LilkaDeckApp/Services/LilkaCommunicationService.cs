@@ -236,26 +236,37 @@ public class LilkaCommunicationService : IDisposable
     public async Task<string[]> GetProfilesListAsync()
     {
         if (!IsConnected) return Array.Empty<string>();
-        
+
         _serialPort!.WriteLine("GET_PROFILES");
-        
+
         var timeoutTask = Task.Delay(2000);
         _ackTcs = new TaskCompletionSource<string>();
-        
+
         var completedTask = await Task.WhenAny(_ackTcs.Task, timeoutTask);
         if (completedTask == timeoutTask) return Array.Empty<string>();
-        
+
         string response = await _ackTcs.Task;
         if (response.StartsWith("PROFILES:"))
         {
             string data = response.Substring(9).Trim();
             if (string.IsNullOrEmpty(data)) return Array.Empty<string>();
-            
+
             return data.Split(',')
                        .OrderBy(id => int.Parse(id))
                        .ToArray();
         }
         return Array.Empty<string>();
+    }
+    
+    public void SendColorPreview(string hexColor)
+    {
+        if (!IsConnected) return;
+        try 
+        {
+            // Fire-and-forget відправка. Не чекаємо ACK, щоб не блокувати UI при швидкому перетягуванні палітри
+            _serialPort!.WriteLine($"SET_COLOR:{hexColor}");
+        } 
+        catch { /* Ігноруємо помилки під час прев'ю */ }
     }
 
     public async Task<byte[]?> DownloadFileAsync(int profileId, string fileName)
@@ -275,7 +286,16 @@ public class LilkaCommunicationService : IDisposable
             int retries = 20; // 2 секунди таймаут (20 * 100ms)
             while (retries-- > 0)
             {
-                try { response = _serialPort.ReadLine().Trim(); break; }
+                try 
+                { 
+                    response = _serialPort.ReadLine().Trim();
+                    
+                    // Якщо дочекалися потрібної відповіді - виходимо з циклу
+                    if (response.StartsWith("FILE_SEND_START:") || response == "ERR:FILE_NOT_FOUND") break;
+                    
+                    // Якщо прилетів якийсь інший лог - просто виводимо його і слухаємо далі
+                    if (response.Length > 0) OnLogMessage?.Invoke($"[ESP32] {response}");
+                }
                 catch (TimeoutException) { }
             }
 

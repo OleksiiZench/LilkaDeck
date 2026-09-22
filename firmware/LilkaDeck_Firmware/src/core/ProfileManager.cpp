@@ -49,6 +49,11 @@ void ProfileManager::previousProfile() {
     loadProfile(_currentProfile);
 }
 
+void ProfileManager::previewColor(const String& hexColor) {
+    _config.setActiveColorHex(hexColor);
+    Serial.printf("[PROFILE] Live Preview Color updated to: %s\n", hexColor.c_str());
+}
+
 void ProfileManager::loadProfile(uint8_t index) {
     Serial.printf("[PROFILE] Loading profile_%d...\n", index);
     
