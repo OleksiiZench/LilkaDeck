@@ -82,14 +82,40 @@ void SyncManager::handleTextMode() {
         return;
     }
 
-    if (cmd.startsWith("SYNC_START:")) {
-        _syncProfileId = cmd.substring(11).toInt();
-        _isSyncing = true;
-        _expectedBytes = 0;
+    if (cmd == "GET_PROFILES") {
+        String profiles = _storageManager.getProfilesList();
+        Serial.println("PROFILES:" + profiles);
+        return;
+    }
+
+    if (cmd.startsWith("FILE_GET:")) {
+        int firstColon = cmd.indexOf(':');
+        int secondColon = cmd.indexOf(':', firstColon + 1);
         
-        String dir = "/profile_" + String(_syncProfileId);
-        _storageManager.createDir(dir.c_str());
-        Serial.println("ACK_SYNC");
+        if (firstColon != -1 && secondColon != -1) {
+            String profileId = cmd.substring(firstColon + 1, secondColon);
+            String fileName = cmd.substring(secondColon + 1);
+            String filePath = "/profile_" + profileId + "/" + fileName;
+            
+            File file = _storageManager.openFileForRead(filePath.c_str());
+            if (file && !file.isDirectory()) {
+                size_t fileSize = file.size();
+                
+                Serial.printf("FILE_SEND_START:%d\n", fileSize);
+                
+                uint8_t buf[256];
+                while (file.available()) {
+                    size_t bytesRead = file.read(buf, sizeof(buf));
+                    if (bytesRead > 0) {
+                        Serial.write(buf, bytesRead);
+                    }
+                }
+                file.close();
+            } else {
+                Serial.println("ERR:FILE_NOT_FOUND");
+            }
+        }
+        return;
     }
 
     if (cmd.startsWith("SYNC_START:")) {

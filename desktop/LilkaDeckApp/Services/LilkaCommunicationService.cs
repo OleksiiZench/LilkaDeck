@@ -138,7 +138,7 @@ public class LilkaCommunicationService : IDisposable
                 {
                     OnExecuteRequested?.Invoke(data.Substring(8).Trim());
                 }
-                else if (data.StartsWith("ACK_") || data.StartsWith("LILKA_PONG"))
+                else if (data.StartsWith("ACK_") || data.StartsWith("LILKA_PONG") || data.StartsWith("PROFILES:"))
                 {
                     _ackTcs?.TrySetResult(data);
                 }
@@ -230,5 +230,73 @@ public class LilkaCommunicationService : IDisposable
     {
         _scannerCts?.Cancel();
         DisconnectInternal();
+    }
+
+    public async Task<string[]> GetProfilesListAsync()
+    {
+        if (!IsConnected) return Array.Empty<string>();
+        
+        _serialPort!.WriteLine("GET_PROFILES");
+        
+        // Чекаємо рядок типу PROFILES:0,1,2
+        var timeoutTask = Task.Delay(2000);
+        _ackTcs = new TaskCompletionSource<string>();
+        
+        var completedTask = await Task.WhenAny(_ackTcs.Task, timeoutTask);
+        if (completedTask == timeoutTask) return Array.Empty<string>();
+        
+        string response = await _ackTcs.Task;
+        if (response.StartsWith("PROFILES:"))
+        {
+            string data = response.Substring(9).Trim();
+            if (string.IsNullOrEmpty(data)) return Array.Empty<string>();
+            return data.Split(',');
+        }
+        return Array.Empty<string>();
+    }
+
+    public async Task<byte[]?> DownloadFileAsync(int profileId, string fileName)
+    {
+        if (!IsConnected) return null;
+
+        // Тимчасово відключаємо текстовий парсер, щоб він не зламався від бінарних даних картинки
+        _serialPort!.DataReceived -= SerialPort_DataReceived;
+        _isSyncingActive = true;
+
+        try
+        {
+            _serialPort.WriteLine($"FILE_GET:{profileId}:{fileName}");
+            
+            // Чекаємо підтвердження і розмір файлу
+            string response = "";
+            int retries = 20; // 2 секунди таймаут (20 * 100ms)
+            while (retries-- > 0)
+            {
+                try { response = _serialPort.ReadLine().Trim(); break; }
+                catch (TimeoutException) { }
+            }
+
+            if (response == "ERR:FILE_NOT_FOUND" || string.IsNullOrEmpty(response)) return null;
+            if (!response.StartsWith("FILE_SEND_START:")) throw new Exception("Unexpected response");
+
+            int size = int.Parse(response.Substring(16));
+            byte[] buffer = new byte[size];
+            int totalRead = 0;
+            
+            // Читаємо сирі байти
+            while(totalRead < size)
+            {
+                int read = _serialPort.BaseStream.Read(buffer, totalRead, size - totalRead);
+                if (read == 0) break;
+                totalRead += read;
+            }
+            return buffer;
+        }
+        finally
+        {
+            _isSyncingActive = false;
+            // Повертаємо текстовий парсер на місце
+            _serialPort.DataReceived += SerialPort_DataReceived;
+        }
     }
 }

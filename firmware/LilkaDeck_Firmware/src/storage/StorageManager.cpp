@@ -76,3 +76,33 @@ void StorageManager::closeFile() {
         _activeWriteFile.close();
     }
 }
+
+String StorageManager::getProfilesList() {
+    String profiles = "";
+    File root = SD.open("/");
+    if (!root) return profiles;
+
+    File file = root.openNextFile();
+    while (file) {
+        if (file.isDirectory()) {
+            String name = String(file.name());
+            if (name.startsWith("/profile_")) {
+                profiles += name.substring(9) + ",";
+            } else if (name.startsWith("profile_")) {
+                profiles += name.substring(8) + ",";
+            }
+        }
+        file.close();
+        file = root.openNextFile();
+    }
+    root.close();
+    
+    if (profiles.length() > 0) {
+        profiles.remove(profiles.length() - 1);
+    }
+    return profiles;
+}
+
+File StorageManager::openFileForRead(const char* path) {
+    return SD.open(path, FILE_READ);
+}

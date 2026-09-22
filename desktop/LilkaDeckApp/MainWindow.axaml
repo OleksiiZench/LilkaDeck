@@ -78,17 +78,11 @@
                     <TextBox x:Name="ActionsTextBox" PlaceholderText="CTRL, ALT, T" TextChanged="OnActionsTextChanged"/>
                 </StackPanel>
 
-                <!-- Button for creating a local JSON backup file -->
-                <Button Content="Зберегти config.json локально" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" 
-                        Margin="0,10,0,0" Background="#333" Click="OnGenerateJsonClicked"/>
-
-                <Separator Background="#555" Margin="0,10"/>
-
                 <!-- 4. Native USB CDC Synchronization Section -->
                 <TextBlock Text="Синхронізація (PC -> ESP32)" FontSize="20" FontWeight="Bold"/>
                 <Grid ColumnDefinitions="Auto, *, Auto">
                     <TextBlock Grid.Column="0" Text="ID Профілю:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <NumericUpDown x:Name="ProfileIdSpinner" Grid.Column="1" Value="0" Minimum="0" Maximum="99" Margin="0,0,10,0"/>
+                    <ComboBox x:Name="ProfileIdComboBox" Grid.Column="1" HorizontalAlignment="Stretch" Margin="0,0,10,0" SelectionChanged="OnProfileSelectionChanged"/>
                     <Button x:Name="SyncButton" Grid.Column="2" Content="Синхронізувати" Background="#E65100" Click="OnSyncButtonClicked" IsEnabled="False"/>
                 </Grid>
                 

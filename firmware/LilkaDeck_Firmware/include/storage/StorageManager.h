@@ -18,6 +18,9 @@ public:
     bool writeChunk(const uint8_t* data, size_t len);
     void closeFile();
 
+    String getProfilesList();
+    File openFileForRead(const char* path);
+
 private:
     bool _isMounted;
     File _activeWriteFile; // Triggers progressive binary write

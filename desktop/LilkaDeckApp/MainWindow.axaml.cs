@@ -37,16 +37,28 @@ public partial class MainWindow : Window
 
     // --- АВТОПІДКЛЮЧЕННЯ (UI UPDATES) ---
 
-    private void HandleConnected(string portName)
+    private async void HandleConnected(string portName)
     {
-        // Всі оновлення UI повинні виконуватися в головному потоці
         Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
         {
-            // Якщо у тебе ще залишилися ComboBox або ConnectButton у XAML, ти можеш їх сховати/заблокувати тут.
             ConnectionStatusText.Text = $"Статус: Підключено ({portName})";
             ConnectionStatusText.Foreground = SolidColorBrush.Parse("#4CAF50");
+            SyncButton.IsEnabled = false; // Вимикаємо синхронізацію, поки качаємо дані
+            SyncStatusText.Text = "Завантаження конфігурації з Лілки...";
+        });
+
+        // 1. Отримуємо список профілів з SD-карти
+        string[] profiles = await _comService.GetProfilesListAsync();
+        
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            ProfileIdComboBox.ItemsSource = profiles;
+            if (profiles.Length > 0)
+                ProfileIdComboBox.SelectedIndex = 0; // Це автоматично викличе OnProfileSelectionChanged
+            else
+                SyncStatusText.Text = "Готово (профілі відсутні)";
+                
             SyncButton.IsEnabled = true;
-            SyncStatusText.Text = "Готово до синхронізації";
         });
     }
 
@@ -76,7 +88,7 @@ public partial class MainWindow : Window
             // 1. Get formatted values from UI
             string hexColor = $"#{ActiveColorPicker.Color.R:X2}{ActiveColorPicker.Color.G:X2}{ActiveColorPicker.Color.B:X2}";
             string profileName = ProfileNameTextBox.Text ?? "Profile";
-            int profileId = (int)(ProfileIdSpinner.Value ?? 0);
+            int profileId = int.TryParse(ProfileIdComboBox.SelectedItem?.ToString(), out int id) ? id : 0;
 
             // 2. Delegate payload building to the Data Service
             var payload = _profileData.BuildSyncPayload(profileName, hexColor);
@@ -211,15 +223,74 @@ public partial class MainWindow : Window
 
             IconPathTextBox.Text = fileName;
 
-            // Update state in Data Service
+            string cachedPath = _profileData.CacheImage(rawOutputPath, fileName);
             _profileData.UpdateConfig(_currentSelectedPosition, c =>
             {
                 c.IconPath = fileName;
-                c.IconFullPath = rawOutputPath;
+                c.IconFullPath = cachedPath;
             });
         }
     }
 
-    // Temporary keep to satisfy XAML until removed in Card 2
-    private void OnGenerateJsonClicked(object? sender, RoutedEventArgs e) { /* Placeholder */ }
+    private async void OnProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (ProfileIdComboBox.SelectedItem is not string profileIdStr) return;
+        if (!int.TryParse(profileIdStr, out int profileId)) return;
+
+        SyncStatusText.Text = $"Завантаження Профілю {profileId}...";
+        SyncButton.IsEnabled = false;
+
+        try
+        {
+            // 2. Викачуємо config.json
+            byte[]? jsonBytes = await _comService.DownloadFileAsync(profileId, "config.json");
+            if (jsonBytes != null)
+            {
+                string jsonString = System.Text.Encoding.UTF8.GetString(jsonBytes);
+                var config = _profileData.LoadFromJson(jsonString);
+
+                if (config != null)
+                {
+                    ProfileNameTextBox.Text = config.ProfileName;
+                    
+                    try { ActiveColorPicker.Color = Color.Parse(config.ActiveColor); } 
+                    catch { /* Ігноруємо помилки парсингу кольору */ }
+
+                    // 3. Завантажуємо іконки, яких немає в локальному кеші
+                    foreach (var kvp in config.Buttons)
+                    {
+                        if (!string.IsNullOrEmpty(kvp.Value.Icon))
+                        {
+                            string expectedCachePath = Path.Combine(_profileData.CacheDirectory, kvp.Value.Icon);
+                            if (!File.Exists(expectedCachePath))
+                            {
+                                SyncStatusText.Text = $"Завантаження {kvp.Value.Icon}...";
+                                byte[]? iconBytes = await _comService.DownloadFileAsync(profileId, kvp.Value.Icon);
+                                if (iconBytes != null)
+                                {
+                                    await File.WriteAllBytesAsync(expectedCachePath, iconBytes);
+                                    _profileData.UpdateConfig(kvp.Key, c => c.IconFullPath = expectedCachePath);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            SyncStatusText.Text = "Готово до синхронізації";
+        }
+        catch (Exception ex)
+        {
+            HandleError(ex);
+        }
+        finally
+        {
+            SyncButton.IsEnabled = true;
+            
+            // Якщо якась кнопка була вибрана, оновлюємо поля в UI
+            if (!string.IsNullOrEmpty(_currentSelectedPosition))
+            {
+                OnDeckButtonClicked(new Button { Tag = _currentSelectedPosition }, new RoutedEventArgs());
+            }
+        }
+    }
 }

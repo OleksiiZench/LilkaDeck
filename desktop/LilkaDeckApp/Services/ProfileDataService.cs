@@ -15,9 +15,19 @@ public class ProfileDataService
 {
     private readonly Dictionary<string, ButtonConfig> _deckConfigs = new();
 
+    public string CacheDirectory { get; }
+
     public ProfileDataService()
     {
-        // Initialize all physical buttons with empty configs
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        
+        CacheDirectory = Path.Combine(appData, "LilkaDeck", "Cache");
+        
+        if (!Directory.Exists(CacheDirectory))
+        {
+            Directory.CreateDirectory(CacheDirectory);
+        }
+
         string[] positions = { "LeftUp", "LeftLeft", "LeftRight", "LeftDown", "RightUp", "RightLeft", "RightRight", "RightDown" };
         foreach (var pos in positions)
         {
@@ -85,5 +95,67 @@ public class ProfileDataService
         byte[] jsonBytes = System.Text.Encoding.UTF8.GetBytes(jsonString);
 
         return (jsonBytes, filesToSend);
+    }
+
+    /// <summary>
+    /// Очищає поточний стан UI
+    /// </summary>
+    public void ClearState()
+    {
+        foreach (var key in _deckConfigs.Keys.ToList())
+        {
+            _deckConfigs[key] = new ButtonConfig();
+        }
+    }
+
+    /// <summary>
+    /// Парсить JSON, отриманий з Лілки, і оновлює стан
+    /// </summary>
+    public OutputConfig? LoadFromJson(string jsonContent)
+    {
+        try
+        {
+            ClearState();
+            var config = JsonSerializer.Deserialize<OutputConfig>(jsonContent);
+            if (config == null) return null;
+
+            foreach (var kvp in config.Buttons)
+            {
+                if (_deckConfigs.ContainsKey(kvp.Key))
+                {
+                    _deckConfigs[kvp.Key].IconPath = kvp.Value.Icon;
+                    _deckConfigs[kvp.Key].ActionType = kvp.Value.Type;
+                    _deckConfigs[kvp.Key].Actions = kvp.Value.Type == "shortcut" 
+                        ? string.Join(", ", kvp.Value.Action) 
+                        : kvp.Value.Action.FirstOrDefault() ?? "";
+                        
+                    // Якщо картинка є в кеші, одразу прив'язуємо її
+                    string cachedImage = Path.Combine(CacheDirectory, kvp.Value.Icon);
+                    if (File.Exists(cachedImage))
+                    {
+                        _deckConfigs[kvp.Key].IconFullPath = cachedImage;
+                    }
+                }
+            }
+            return config;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"JSON Parse Error: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Копіює вибрану картинку в кеш перед відправкою (щоб не втратити її)
+    /// </summary>
+    public string CacheImage(string originalPath, string fileName)
+    {
+        string cachedPath = Path.Combine(CacheDirectory, fileName);
+        if (originalPath != cachedPath)
+        {
+            File.Copy(originalPath, cachedPath, true);
+        }
+        return cachedPath;
     }
 }
