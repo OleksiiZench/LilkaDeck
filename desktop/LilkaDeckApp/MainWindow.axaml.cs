@@ -137,6 +137,11 @@ public partial class MainWindow : Window
 
                 await _comService.SyncDataAsync(profileId, payload.jsonBytes, payload.filesToSend, progress, status);
                 AppLog("Збережено на пристрій!");
+
+                foreach (var pos in new[] { "LeftUp", "LeftLeft", "LeftRight", "LeftDown", "RightUp", "RightLeft", "RightRight", "RightDown" })
+                {
+                    _profileData.UpdateConfig(pos, c => c.NeedsUpload = false);
+                }
             }
             catch (Exception ex)
             {
@@ -293,6 +298,7 @@ public partial class MainWindow : Window
             {
                 c.IconPath = fileName;
                 c.IconFullPath = cachedPath;
+                c.NeedsUpload = true;
             });
 
             // --- INSTANT SYNCHRONIZATION FOR ICONS ---

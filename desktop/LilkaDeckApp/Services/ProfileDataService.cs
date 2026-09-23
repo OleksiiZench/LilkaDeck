@@ -71,7 +71,6 @@ public class ProfileDataService
         {
             if (!string.IsNullOrWhiteSpace(kvp.Value.IconPath) || !string.IsNullOrWhiteSpace(kvp.Value.Actions))
             {
-                // Parse actions (comma separated for shortcuts, single string for launch)
                 var actionList = kvp.Value.ActionType == "shortcut"
                     ? kvp.Value.Actions.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList()
                     : new List<string> { kvp.Value.Actions.Trim() };
@@ -83,8 +82,7 @@ public class ProfileDataService
                     Action = actionList
                 };
 
-                // Track local files that need to be sent over USB
-                if (!string.IsNullOrWhiteSpace(kvp.Value.IconFullPath) && File.Exists(kvp.Value.IconFullPath))
+                if (kvp.Value.NeedsUpload && !string.IsNullOrWhiteSpace(kvp.Value.IconFullPath) && File.Exists(kvp.Value.IconFullPath))
                 {
                     filesToSend[kvp.Value.IconPath] = kvp.Value.IconFullPath;
                 }
@@ -134,6 +132,7 @@ public class ProfileDataService
                     if (File.Exists(cachedImage))
                     {
                         _deckConfigs[kvp.Key].IconFullPath = cachedImage;
+                        _deckConfigs[kvp.Key].NeedsUpload = false;
                     }
                 }
             }
