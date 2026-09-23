@@ -2,9 +2,11 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Media;
+using Avalonia.Threading;
 using System;
 using System.IO;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using LilkaDeckApp.Services;
 
 namespace LilkaDeckApp;
@@ -13,6 +15,8 @@ public partial class MainWindow : Window
 {
     private string _currentSelectedPosition = "";
     private bool _isLoadingProfile = false;
+    private DispatcherTimer _autoSyncTimer;
+    private string _lastColor = "";
 
     private readonly LilkaCommunicationService _comService;
     private readonly ProfileDataService _profileData;
@@ -24,103 +28,105 @@ public partial class MainWindow : Window
         _profileData = new ProfileDataService();
         _comService = new LilkaCommunicationService();
 
-        // Subscribe to auto-connect events
+        // Initialize the auto-synchronization timer (1.5 seconds of silence before sending)
+        _autoSyncTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+        _autoSyncTimer.Tick += OnAutoSyncTimerTick;
+
         _comService.OnConnected += HandleConnected;
         _comService.OnDisconnected += HandleDisconnected;
-
         _comService.OnExecuteRequested += HandleExecuteRequest;
         _comService.OnLogMessage += HandleLogMessage;
         _comService.OnError += HandleError;
 
-        // Launch the background scanner when the app starts
         _comService.StartAutoScanner();
     }
 
     private void AppLog(string message, bool isError = false)
     {
-        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.InvokeAsync(() =>
         {
             string time = DateTime.Now.ToString("HH:mm:ss");
             string prefix = isError ? "[ПОМИЛКА]" : "[ІНФО]";
             string logLine = $"[{time}] {prefix} {message}\r\n";
 
             LogTextBox.Text += logLine;
-            LogTextBox.CaretIndex = LogTextBox.Text?.Length ?? 0; // Автоматична прокрутка вниз
+            LogTextBox.CaretIndex = LogTextBox.Text?.Length ?? 0;
         });
     }
 
     private async void HandleConnected(string portName)
     {
-        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.InvokeAsync(() =>
         {
             ConnectionStatusText.Text = $"Статус: Підключено ({portName})";
             ConnectionStatusText.Foreground = SolidColorBrush.Parse("#4CAF50");
-            SyncButton.IsEnabled = false;
             AppLog($"Підключено до порту {portName}");
             AppLog("Завантаження конфігурації з Лілки...");
         });
 
-        // Retrieve a list of profiles from the SD card
         string[] profiles = await _comService.GetProfilesListAsync();
 
-        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        await Dispatcher.UIThread.InvokeAsync(() =>
         {
             ProfileIdComboBox.ItemsSource = profiles;
             if (profiles.Length > 0)
                 ProfileIdComboBox.SelectedIndex = 0;
             else
                 AppLog("Готово (профілі відсутні)");
-
-            SyncButton.IsEnabled = true;
         });
     }
 
     private void HandleDisconnected()
     {
-        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.InvokeAsync(() =>
         {
             ConnectionStatusText.Text = "Статус: Пошук пристрою...";
             ConnectionStatusText.Foreground = SolidColorBrush.Parse("#FFA500");
-            SyncButton.IsEnabled = false;
             AppLog("Пристрій відключено. Пошук...", true);
         });
     }
 
-    // --- SYNCHRONIZATION ---
+    // --- AUTO-SYNCHRONIZATION LOGIC ---
 
-    private async void OnSyncButtonClicked(object? sender, RoutedEventArgs e)
+    private void TriggerAutoSync()
+    {
+        // Do not start synchronization if data is still loading or there is no connection
+        if (_isLoadingProfile || !_comService.IsConnected) return;
+
+        // Reset the timer. If the user continues typing, the countdown will start over.
+        _autoSyncTimer.Stop();
+        _autoSyncTimer.Start();
+    }
+
+    private async void OnAutoSyncTimerTick(object? sender, EventArgs e)
+    {
+        _autoSyncTimer.Stop(); // Pause the timer until the next changes
+        await PerformSyncAsync();
+    }
+
+    private async Task PerformSyncAsync()
     {
         if (!_comService.IsConnected) return;
 
         try
         {
-            SyncButton.IsEnabled = false;
             SyncProgressBar.Value = 0;
+            AppLog("Автосинхронізація...");
 
-            // 1. Get formatted values from UI
             string hexColor = $"#{ActiveColorPicker.Color.R:X2}{ActiveColorPicker.Color.G:X2}{ActiveColorPicker.Color.B:X2}";
             string profileName = ProfileNameTextBox.Text ?? "Profile";
             int profileId = int.TryParse(ProfileIdComboBox.SelectedItem?.ToString(), out int id) ? id : 0;
 
-            // 2. Delegate payload building to the Data Service
             var payload = _profileData.BuildSyncPayload(profileName, hexColor);
-
-            // 3. Setup progress tracking callbacks (Тепер використовує AppLog)
             var progress = new Progress<int>(percent => SyncProgressBar.Value = percent);
             var status = new Progress<string>(msg => AppLog(msg));
 
-            // 4. Execute Sync
             await _comService.SyncDataAsync(profileId, payload.jsonBytes, payload.filesToSend, progress, status);
-
-            AppLog("Синхронізація успішна!");
+            AppLog("Збережено на пристрій!");
         }
         catch (Exception ex)
         {
             HandleError(ex);
-        }
-        finally
-        {
-            SyncButton.IsEnabled = true;
         }
     }
 
@@ -128,7 +134,7 @@ public partial class MainWindow : Window
 
     private void HandleExecuteRequest(string target)
     {
-        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.InvokeAsync(() =>
         {
             try { Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true }); }
             catch (Exception ex) { AppLog($"Launch error: {ex.Message}", true); }
@@ -139,7 +145,7 @@ public partial class MainWindow : Window
 
     private void HandleError(Exception ex)
     {
-        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.InvokeAsync(() =>
         {
             ConnectionStatusText.Text = $"Помилка: {ex.Message}";
             ConnectionStatusText.Foreground = SolidColorBrush.Parse("#FF5252");
@@ -147,16 +153,28 @@ public partial class MainWindow : Window
         });
     }
 
-    // --- LIVE COLOR PREVIEW ---
+    // --- UI EVENT HANDLERS ---
+
+    private void OnProfileNameChanged(object? sender, TextChangedEventArgs e)
+    {
+        // The timer will start only if the cursor is physically in this field
+        if (_isLoadingProfile || !ProfileNameTextBox.IsFocused) return;
+        TriggerAutoSync();
+    }
+
     private void OnActiveColorChanged(object? sender, ColorChangedEventArgs e)
     {
         if (_isLoadingProfile) return;
 
         string hexColor = $"#{e.NewColor.R:X2}{e.NewColor.G:X2}{e.NewColor.B:X2}";
-        _comService.SendColorPreview(hexColor);
-    }
+        
+        // Handle window redraw events (ignore if the color hasn't changed)
+        if (hexColor == _lastColor) return;
+        _lastColor = hexColor;
 
-    // --- UI EVENT HANDLERS (Deck buttons, ComboBoxes, File Picker) ---
+        _comService.SendColorPreview(hexColor);
+        TriggerAutoSync();
+    }
 
     private void OnDeckButtonClicked(object? sender, RoutedEventArgs e)
     {
@@ -166,11 +184,14 @@ public partial class MainWindow : Window
             ButtonSettingsPanel.IsEnabled = true;
             SelectedButtonLabel.Text = $"Редагування: {position}";
 
-            // Fetch state from Data Service
             var config = _profileData.GetConfig(position);
 
             IconPathTextBox.Text = config.IconPath;
+
+            // We're temporarily unsubscribing so that programmatic changes to the text don't trigger auto-syncing
+            ActionsTextBox.TextChanged -= OnActionsTextChanged;
             ActionsTextBox.Text = config.Actions;
+            ActionsTextBox.TextChanged += OnActionsTextChanged;
 
             ActionTypeComboBox.SelectionChanged -= OnActionTypeChanged;
             ActionTypeComboBox.SelectedIndex = config.ActionType == "launch" ? 1 : 0;
@@ -186,6 +207,7 @@ public partial class MainWindow : Window
         {
             _profileData.UpdateConfig(_currentSelectedPosition, c => c.ActionType = type);
             UpdateActionHint(type);
+            TriggerAutoSync();
         }
     }
 
@@ -205,9 +227,12 @@ public partial class MainWindow : Window
 
     private void OnActionsTextChanged(object? sender, TextChangedEventArgs e)
     {
+        if (_isLoadingProfile || !ActionsTextBox.IsFocused) return;
+
         if (!string.IsNullOrEmpty(_currentSelectedPosition) && sender is TextBox tb)
         {
             _profileData.UpdateConfig(_currentSelectedPosition, c => c.Actions = tb.Text ?? "");
+            TriggerAutoSync();
         }
     }
 
@@ -243,13 +268,17 @@ public partial class MainWindow : Window
             }
 
             IconPathTextBox.Text = fileName;
-
             string cachedPath = _profileData.CacheImage(rawOutputPath, fileName);
+            
             _profileData.UpdateConfig(_currentSelectedPosition, c =>
             {
                 c.IconPath = fileName;
                 c.IconFullPath = cachedPath;
             });
+
+            // --- INSTANT SYNCHRONIZATION FOR ICONS ---
+            _autoSyncTimer.Stop();
+            await PerformSyncAsync();
         }
     }
 
@@ -259,13 +288,11 @@ public partial class MainWindow : Window
         if (!int.TryParse(profileIdStr, out int profileId)) return;
 
         AppLog($"Завантаження Профілю {profileId}...");
-        SyncButton.IsEnabled = false;
 
         _isLoadingProfile = true;
 
         try
         {
-            // Download config.json
             byte[]? jsonBytes = await _comService.DownloadFileAsync(profileId, "config.json");
             if (jsonBytes != null)
             {
@@ -274,12 +301,18 @@ public partial class MainWindow : Window
 
                 if (config != null)
                 {
+                    // Temporarily unsubscribe from the event to avoid incorrect autosynchronization
+                    ProfileNameTextBox.TextChanged -= OnProfileNameChanged;
                     ProfileNameTextBox.Text = config.ProfileName;
+                    ProfileNameTextBox.TextChanged += OnProfileNameChanged;
 
-                    try { ActiveColorPicker.Color = Color.Parse(config.ActiveColor); }
-                    catch { /* Ignore color parsing errors */ }
+                    try 
+                    { 
+                        _lastColor = config.ActiveColor;
+                        ActiveColorPicker.Color = Color.Parse(config.ActiveColor); 
+                    }
+                    catch { }
 
-                    // Load icons that aren't in the local cache
                     foreach (var kvp in config.Buttons)
                     {
                         if (!string.IsNullOrEmpty(kvp.Value.Icon))
@@ -299,7 +332,7 @@ public partial class MainWindow : Window
                     }
                 }
             }
-            AppLog("Готово до синхронізації");
+            AppLog("Готово до редагування");
         }
         catch (Exception ex)
         {
@@ -308,7 +341,6 @@ public partial class MainWindow : Window
         finally
         {
             _isLoadingProfile = false;
-            SyncButton.IsEnabled = true;
 
             if (!string.IsNullOrEmpty(_currentSelectedPosition))
             {
