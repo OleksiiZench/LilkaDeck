@@ -21,6 +21,9 @@ public partial class MainWindow : Window
     private bool _isDesktopSyncing = false;
     private bool _pendingSync = false;
 
+    private string[] _availableProfiles = Array.Empty<string>();
+    private int _currentProfileIndex = 0;
+
     private readonly LilkaCommunicationService _comService;
     private readonly ProfileDataService _profileData;
     private Dictionary<string, Button> _deckButtons;
@@ -43,7 +46,6 @@ public partial class MainWindow : Window
         _profileData = new ProfileDataService();
         _comService = new LilkaCommunicationService();
 
-        // Initialize the auto-synchronization timer (1.5 seconds of silence before sending)
         _autoSyncTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
         _autoSyncTimer.Tick += OnAutoSyncTimerTick;
 
@@ -80,7 +82,7 @@ public partial class MainWindow : Window
             AppLog("Завантаження конфігурації з Лілки...");
         });
 
-        await RefreshProfileListAsync();
+        await RefreshProfileStateAsync();
     }
 
     private void HandleDisconnected()
@@ -95,33 +97,121 @@ public partial class MainWindow : Window
         });
     }
 
-    private async Task RefreshProfileListAsync(int? selectId = null)
+    private async Task RefreshProfileStateAsync(string targetProfileId = "0")
     {
-        string[] profiles = await _comService.GetProfilesListAsync();
+        _availableProfiles = await _comService.GetProfilesListAsync();
 
-        await Dispatcher.UIThread.InvokeAsync(() =>
+        if (_availableProfiles.Length > 0)
         {
-            ProfileIdComboBox.ItemsSource = profiles;
-            
-            if (profiles.Length > 0)
+            _currentProfileIndex = Array.IndexOf(_availableProfiles, targetProfileId);
+            if (_currentProfileIndex == -1) _currentProfileIndex = 0;
+
+            await LoadActiveProfileAsync();
+        }
+        else
+        {
+            Dispatcher.UIThread.InvokeAsync(() =>
             {
-                if (selectId.HasValue && Array.Exists(profiles, p => p == selectId.Value.ToString()))
-                {
-                    ProfileIdComboBox.SelectedItem = selectId.Value.ToString();
-                }
-                else
-                {
-                    ProfileIdComboBox.SelectedIndex = 0;
-                }
-                
-                DeleteProfileButton.IsEnabled = profiles.Length > 1; 
-            }
-            else
-            {
-                AppLog("Готово (профілі відсутні)");
+                ActiveProfileTitle.Text = "Профілі відсутні";
                 DeleteProfileButton.IsEnabled = false;
-            }
+            });
+        }
+    }
+
+    private void OnPrevProfileClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_availableProfiles.Length == 0 || _isLoadingProfile) return;
+        _currentProfileIndex = (_currentProfileIndex == 0) ? (_availableProfiles.Length - 1) : (_currentProfileIndex - 1);
+        _ = LoadActiveProfileAsync();
+    }
+
+    private void OnNextProfileClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_availableProfiles.Length == 0 || _isLoadingProfile) return;
+        _currentProfileIndex = (_currentProfileIndex + 1) % _availableProfiles.Length;
+        _ = LoadActiveProfileAsync();
+    }
+
+    private async Task LoadActiveProfileAsync()
+    {
+        if (_availableProfiles.Length == 0) return;
+
+        string profileIdStr = _availableProfiles[_currentProfileIndex];
+        if (!int.TryParse(profileIdStr, out int profileId)) return;
+
+        AppLog($"Завантаження Профілю {profileId}...");
+        _isLoadingProfile = true;
+
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            ActiveProfileTitle.Text = $"Профіль {profileId}";
+            DeleteProfileButton.IsEnabled = _availableProfiles.Length > 1;
         });
+
+        try
+        {
+            byte[]? jsonBytes = await _comService.DownloadFileAsync(profileId, "config.json");
+            if (jsonBytes != null)
+            {
+                string jsonString = System.Text.Encoding.UTF8.GetString(jsonBytes);
+                var config = _profileData.LoadFromJson(jsonString);
+
+                if (config != null)
+                {
+                    Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        ProfileNameTextBox.TextChanged -= OnProfileNameChanged;
+                        ProfileNameTextBox.Text = config.ProfileName;
+                        ProfileNameTextBox.TextChanged += OnProfileNameChanged;
+
+                        ActiveProfileTitle.Text = $"Профіль {profileId}: {config.ProfileName}";
+
+                        try
+                        {
+                            _lastColor = config.ActiveColor;
+                            ActiveColorPicker.Color = Color.Parse(config.ActiveColor);
+                        }
+                        catch { }
+                    });
+
+                    foreach (var kvp in config.Buttons)
+                    {
+                        if (!string.IsNullOrEmpty(kvp.Value.Icon))
+                        {
+                            string expectedCachePath = Path.Combine(_profileData.CacheDirectory, kvp.Value.Icon);
+                            if (!File.Exists(expectedCachePath))
+                            {
+                                AppLog($"Завантаження {kvp.Value.Icon}...");
+                                byte[]? iconBytes = await _comService.DownloadFileAsync(profileId, kvp.Value.Icon);
+                                if (iconBytes != null)
+                                {
+                                    await File.WriteAllBytesAsync(expectedCachePath, iconBytes);
+                                    _profileData.UpdateConfig(kvp.Key, c => c.IconFullPath = expectedCachePath);
+                                }
+                            }
+                        }
+                    }
+                    UpdateDeckVisuals();
+                }
+            }
+            AppLog("Готово до редагування");
+        }
+        catch (Exception ex)
+        {
+            HandleError(ex);
+        }
+        finally
+        {
+            _isLoadingProfile = false;
+
+            Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (!string.IsNullOrEmpty(_currentSelectedPosition))
+                {
+                    OnDeckButtonClicked(new Button { Tag = _currentSelectedPosition }, new RoutedEventArgs());
+                }
+            });
+        }
     }
 
     private async void OnAddProfileClicked(object? sender, RoutedEventArgs e)
@@ -138,7 +228,7 @@ public partial class MainWindow : Window
             if (newId.HasValue)
             {
                 AppLog($"Профіль {newId.Value} успішно створено!");
-                await RefreshProfileListAsync(newId.Value);
+                await RefreshProfileStateAsync(newId.Value.ToString());
             }
             else
             {
@@ -157,9 +247,10 @@ public partial class MainWindow : Window
 
     private async void OnDeleteProfileClicked(object? sender, RoutedEventArgs e)
     {
-        if (!_comService.IsConnected || _isLoadingProfile) return;
-        
-        if (ProfileIdComboBox.SelectedItem is not string profileIdStr || !int.TryParse(profileIdStr, out int profileId)) return;
+        if (!_comService.IsConnected || _isLoadingProfile || _availableProfiles.Length == 0) return;
+
+        string profileIdStr = _availableProfiles[_currentProfileIndex];
+        if (!int.TryParse(profileIdStr, out int profileId)) return;
 
         AppLog($"Видалення профілю {profileId}...");
         AddProfileButton.IsEnabled = false;
@@ -171,8 +262,8 @@ public partial class MainWindow : Window
             if (success)
             {
                 AppLog("Профіль успішно видалено!");
-                _profileData.ClearState(); 
-                await RefreshProfileListAsync(0);
+                _profileData.ClearState();
+                await RefreshProfileStateAsync("0");
             }
             else
             {
@@ -195,27 +286,24 @@ public partial class MainWindow : Window
 
     private void TriggerAutoSync()
     {
-        // Do not start synchronization if data is still loading or there is no connection
         if (_isLoadingProfile || !_comService.IsConnected) return;
-
-        // Reset the timer. If the user continues typing, the countdown will start over.
         _autoSyncTimer.Stop();
         _autoSyncTimer.Start();
     }
 
     private async void OnAutoSyncTimerTick(object? sender, EventArgs e)
     {
-        _autoSyncTimer.Stop(); // Pause the timer until the next changes
+        _autoSyncTimer.Stop();
         await PerformSyncAsync();
     }
 
     private async Task PerformSyncAsync()
     {
-        if (!_comService.IsConnected) return;
+        if (!_comService.IsConnected || _availableProfiles.Length == 0) return;
 
         if (_isDesktopSyncing)
         {
-            _pendingSync = true; 
+            _pendingSync = true;
             return;
         }
 
@@ -232,7 +320,14 @@ public partial class MainWindow : Window
 
                 string hexColor = $"#{ActiveColorPicker.Color.R:X2}{ActiveColorPicker.Color.G:X2}{ActiveColorPicker.Color.B:X2}";
                 string profileName = ProfileNameTextBox.Text ?? "Profile";
-                int profileId = int.TryParse(ProfileIdComboBox.SelectedItem?.ToString(), out int id) ? id : 0;
+
+                string profileIdStr = _availableProfiles[_currentProfileIndex];
+                int profileId = int.TryParse(profileIdStr, out int id) ? id : 0;
+
+                Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    ActiveProfileTitle.Text = $"Профіль {profileId}: {profileName}";
+                });
 
                 var payload = _profileData.BuildSyncPayload(profileName, hexColor);
                 var progress = new Progress<int>(percent => SyncProgressBar.Value = percent);
@@ -251,7 +346,7 @@ public partial class MainWindow : Window
                 HandleError(ex);
             }
 
-            if (!_pendingSync) break; 
+            if (!_pendingSync) break;
         }
 
         _isDesktopSyncing = false;
@@ -284,7 +379,6 @@ public partial class MainWindow : Window
 
     private void OnProfileNameChanged(object? sender, TextChangedEventArgs e)
     {
-        // The timer will start only if the cursor is physically in this field
         if (_isLoadingProfile || !ProfileNameTextBox.IsFocused) return;
         TriggerAutoSync();
     }
@@ -294,8 +388,7 @@ public partial class MainWindow : Window
         if (_isLoadingProfile) return;
 
         string hexColor = $"#{e.NewColor.R:X2}{e.NewColor.G:X2}{e.NewColor.B:X2}";
-        
-        // Handle window redraw events (ignore if the color hasn't changed)
+
         if (hexColor == _lastColor) return;
         _lastColor = hexColor;
 
@@ -315,7 +408,6 @@ public partial class MainWindow : Window
 
             IconPathTextBox.Text = config.IconPath;
 
-            // We're temporarily unsubscribing so that programmatic changes to the text don't trigger auto-syncing
             ActionsTextBox.TextChanged -= OnActionsTextChanged;
             ActionsTextBox.Text = config.Actions;
             ActionsTextBox.TextChanged += OnActionsTextChanged;
@@ -396,13 +488,6 @@ public partial class MainWindow : Window
 
             IconPathTextBox.Text = fileName;
             string cachedPath = _profileData.CacheImage(rawOutputPath, fileName);
-            
-            _profileData.UpdateConfig(_currentSelectedPosition, c =>
-            {
-                c.IconPath = fileName;
-                c.IconFullPath = cachedPath;
-                c.NeedsUpload = true;
-            });
 
             _profileData.UpdateConfig(_currentSelectedPosition, c =>
             {
@@ -413,80 +498,11 @@ public partial class MainWindow : Window
 
             UpdateDeckVisuals();
 
-            // --- INSTANT SYNCHRONIZATION FOR ICONS ---
             _autoSyncTimer.Stop();
             await PerformSyncAsync();
         }
     }
 
-    private async void OnProfileSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (ProfileIdComboBox.SelectedItem is not string profileIdStr) return;
-        if (!int.TryParse(profileIdStr, out int profileId)) return;
-
-        AppLog($"Завантаження Профілю {profileId}...");
-
-        _isLoadingProfile = true;
-
-        try
-        {
-            byte[]? jsonBytes = await _comService.DownloadFileAsync(profileId, "config.json");
-            if (jsonBytes != null)
-            {
-                string jsonString = System.Text.Encoding.UTF8.GetString(jsonBytes);
-                var config = _profileData.LoadFromJson(jsonString);
-
-                if (config != null)
-                {
-                    // Temporarily unsubscribe from the event to avoid incorrect autosynchronization
-                    ProfileNameTextBox.TextChanged -= OnProfileNameChanged;
-                    ProfileNameTextBox.Text = config.ProfileName;
-                    ProfileNameTextBox.TextChanged += OnProfileNameChanged;
-
-                    try
-                    {
-                        _lastColor = config.ActiveColor;
-                        ActiveColorPicker.Color = Color.Parse(config.ActiveColor);
-                    }
-                    catch { }
-
-                    foreach (var kvp in config.Buttons)
-                    {
-                        if (!string.IsNullOrEmpty(kvp.Value.Icon))
-                        {
-                            string expectedCachePath = Path.Combine(_profileData.CacheDirectory, kvp.Value.Icon);
-                            if (!File.Exists(expectedCachePath))
-                            {
-                                AppLog($"Завантаження {kvp.Value.Icon}...");
-                                byte[]? iconBytes = await _comService.DownloadFileAsync(profileId, kvp.Value.Icon);
-                                if (iconBytes != null)
-                                {
-                                    await File.WriteAllBytesAsync(expectedCachePath, iconBytes);
-                                    _profileData.UpdateConfig(kvp.Key, c => c.IconFullPath = expectedCachePath);
-                                }
-                            }
-                        }
-                    }
-                    UpdateDeckVisuals();
-                }
-            }
-            AppLog("Готово до редагування");
-        }
-        catch (Exception ex)
-        {
-            HandleError(ex);
-        }
-        finally
-        {
-            _isLoadingProfile = false;
-
-            if (!string.IsNullOrEmpty(_currentSelectedPosition))
-            {
-                OnDeckButtonClicked(new Button { Tag = _currentSelectedPosition }, new RoutedEventArgs());
-            }
-        }
-    }
-    
     private void UpdateDeckVisuals()
     {
         Dispatcher.UIThread.InvokeAsync(() =>
@@ -499,21 +515,18 @@ public partial class MainWindow : Window
 
                 if (!string.IsNullOrEmpty(config.IconFullPath) && File.Exists(config.IconFullPath))
                 {
-                    // Decode a .raw file into a Bitmap for Avalonia
                     var bitmap = ImageConverter.DecodeRgb565RawToBitmap(config.IconFullPath);
                     if (bitmap != null)
                     {
-                        // Replace the button's text content with an Image component
-                        btn.Content = new Avalonia.Controls.Image 
-                        { 
-                            Source = bitmap, 
-                            Stretch = Stretch.UniformToFill 
+                        btn.Content = new Avalonia.Controls.Image
+                        {
+                            Source = bitmap,
+                            Stretch = Stretch.UniformToFill
                         };
                         continue;
                     }
                 }
 
-                // If there is no icon, return the default text
                 btn.Content = _defaultButtonTexts[pos];
             }
         });
