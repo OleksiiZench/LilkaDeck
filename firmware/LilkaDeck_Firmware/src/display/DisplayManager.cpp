@@ -126,6 +126,17 @@ void DisplayManager::drawProfileName(const String &name) {
     _tft.drawString(name, 140, 238);
 }
 
+void DisplayManager::clearIconArea(IconPosition pos) {
+    int32_t x, y;
+    getIconCoordinates(pos, x, y);
+
+    _tft.startWrite();
+    _tft.drawPixel(0, 0, TFT_BLACK);
+    _tft.endWrite();
+
+    _tft.fillRect(x, y, 64, 64, TFT_BLACK);
+}
+
 void DisplayManager::getIconCoordinates(IconPosition pos, int32_t& x, int32_t& y) {
     const int32_t ROW_UP = 18;
     const int32_t ROW_MID = 88;

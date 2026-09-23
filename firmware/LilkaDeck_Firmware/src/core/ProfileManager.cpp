@@ -54,34 +54,53 @@ void ProfileManager::previewColor(const String& hexColor) {
     Serial.printf("[PROFILE] Live Preview Color updated to: %s\n", hexColor.c_str());
 }
 
-void ProfileManager::loadProfile(uint8_t index) {
-    Serial.printf("[PROFILE] Loading profile_%d...\n", index);
+void ProfileManager::loadProfile(uint8_t index, bool fullClear) {
+    Serial.printf("[PROFILE] Loading profile_%d (fullClear: %d)...\n", index, fullClear);
     
     String folderPath = "/profile_" + String(index);
     String configPath = folderPath + "/config.json";
 
-    // Isolate the SPI bus before reading the SD card
     digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
     
     String jsonConfig = _storage.readTextFile(configPath.c_str());
     
     if (jsonConfig.length() > 0 && _config.loadConfig(jsonConfig)) {
-        
         digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
-        _display.clear();
         
-        // Draw the profile name
+        // Clear the entire screen ONLY when switching profiles using the buttons on Lilka itself
+        if (fullClear) {
+            _display.clear();
+        }
+        
+        // Draws text (you've already implemented this safely using `fillRect`; it doesn't flicker)
         _display.drawProfileName(_config.getProfileName());
 
-        for (const auto& pair : _config.getButtons()) {
-            IconPosition pos = pair.first;
-            // Construct the full path to the icon (for example: /profile_0/icon.rgb565)
-            String iconPath = folderPath + "/" + pair.second.iconPath;
+        // Array of all possible buttons on the macro pad
+        IconPosition allPositions[] = {
+            IconPosition::LeftUp, IconPosition::LeftLeft, IconPosition::LeftRight, IconPosition::LeftDown,
+            IconPosition::RightUp, IconPosition::RightLeft, IconPosition::RightRight, IconPosition::RightDown
+        };
+
+        const auto& buttons = _config.getButtons();
+
+        for (IconPosition pos : allPositions) {
+            bool iconDrawn = false;
             
-            if (_storage.readFileToBuffer(iconPath.c_str(), _iconBuffer, ICON_BUFFER_SIZE)) {
-                digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
-                uint16_t* rgb565Data = reinterpret_cast<uint16_t*>(_iconBuffer);
-                _display.drawIcon(pos, rgb565Data);
+            for (const auto& pair : buttons) {
+                if (pair.first == pos && pair.second.iconPath.length() > 0) {
+                    String iconPath = folderPath + "/" + pair.second.iconPath;
+                    if (_storage.readFileToBuffer(iconPath.c_str(), _iconBuffer, ICON_BUFFER_SIZE)) {
+                        digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
+                        uint16_t* rgb565Data = reinterpret_cast<uint16_t*>(_iconBuffer);
+                        _display.drawIcon(pos, rgb565Data);
+                        iconDrawn = true;
+                    }
+                    break;
+                }
+            }
+            
+            if (!iconDrawn && !fullClear) {
+                _display.clearIconArea(pos);
             }
         }
         Serial.println("[PROFILE] UI loaded successfully.");

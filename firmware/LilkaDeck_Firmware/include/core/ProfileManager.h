@@ -9,7 +9,7 @@ public:
     ProfileManager(ConfigManager& config, StorageManager& storage, DisplayManager& display);
     
     void begin();
-    void loadProfile(uint8_t index);
+    void loadProfile(uint8_t index, bool fullClear = true);
     void nextProfile();
     void previousProfile();
     void previewColor(const String& hexColor);

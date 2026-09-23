@@ -25,6 +25,7 @@ public:
     void setIconPressed(IconPosition pos, bool isPressed, uint16_t color);
     
     void drawProfileName(const String& name);
+    void clearIconArea(IconPosition pos);
 
 private:
     TFT_eSPI _tft;
