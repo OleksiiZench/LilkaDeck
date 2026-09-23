@@ -11,6 +11,9 @@ public:
 
     bool readFileToBuffer(const char* path, uint8_t* buffer, size_t bufferSize);
     String readTextFile(const char *path);
+    
+    // Utility to write simple text (used for generating default config.json)
+    bool writeTextFile(const char* path, const char* content);
 
     // Sync Protocol Methods
     bool createDir(const char* path);
@@ -20,6 +23,10 @@ public:
 
     String getProfilesList();
     File openFileForRead(const char* path);
+    
+    // Advanced Profile Management Methods
+    bool deleteDirRecursive(const char* path);
+    bool renameFileOrDir(const char* oldPath, const char* newPath);
 
 private:
     bool _isMounted;

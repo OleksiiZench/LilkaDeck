@@ -89,3 +89,59 @@ void ProfileManager::loadProfile(uint8_t index) {
         Serial.printf("[ERR] Failed to load %s\n", configPath.c_str());
     }
 }
+
+uint8_t ProfileManager::createNewProfile() {
+    uint8_t newId = _profileCount;
+    String dirPath = "/profile_" + String(newId);
+    String configPath = dirPath + "/config.json";
+
+    digitalWrite(BoardConfig::PIN_SD_CS, HIGH); // Isolate SPI bus
+
+    // Create the new folder
+    _storage.createDir(dirPath.c_str());
+
+    // Generate a default valid config.json
+    String defaultConfig = "{\n  \"profileName\": \"New Profile\",\n  \"activeColor\": \"#00FFFF\",\n  \"buttons\": {}\n}";
+    _storage.writeTextFile(configPath.c_str(), defaultConfig.c_str());
+
+    digitalWrite(BoardConfig::PIN_SD_CS, HIGH); // Isolate SPI bus
+
+    _profileCount++;
+    Serial.printf("[PROFILE] Created new profile_%d\n", newId);
+    
+    return newId;
+}
+
+bool ProfileManager::deleteProfile(uint8_t index) {
+    // Prevent deleting the last remaining profile or non-existent profiles
+    if (_profileCount <= 1 || index >= _profileCount) {
+        Serial.println("[ERR] Cannot delete the last profile or out-of-bounds index.");
+        return false;
+    }
+
+    String dirPath = "/profile_" + String(index);
+
+    digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
+
+    // 1. Delete the targeted folder and all files inside it
+    _storage.deleteDirRecursive(dirPath.c_str());
+    Serial.printf("[PROFILE] Deleted %s\n", dirPath.c_str());
+
+    // 2. Shift all subsequent profiles down by 1 to close the gap
+    for (uint8_t i = index + 1; i < _profileCount; i++) {
+        String oldPath = "/profile_" + String(i);
+        String newPath = "/profile_" + String(i - 1);
+        _storage.renameFileOrDir(oldPath.c_str(), newPath.c_str());
+        Serial.printf("[PROFILE] Renamed %s to %s\n", oldPath.c_str(), newPath.c_str());
+    }
+
+    digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
+
+    _profileCount--;
+
+    // 3. Ensure UI safety by forcing navigation to profile_0 after a deletion
+    _currentProfile = 0;
+    loadProfile(_currentProfile);
+    
+    return true;
+}

@@ -279,19 +279,19 @@ public class LilkaCommunicationService : IDisposable
         try
         {
             _serialPort.WriteLine($"FILE_GET:{profileId}:{fileName}");
-            
+
             // Waiting for confirmation and the file size
             string response = "";
             int retries = 20; // 2-second timeout (20 * 100 ms)
             while (retries-- > 0)
             {
-                try 
-                { 
+                try
+                {
                     response = _serialPort.ReadLine().Trim();
-                    
+
                     // If we've received the desired response, we exit the loop
                     if (response.StartsWith("FILE_SEND_START:") || response == "ERR:FILE_NOT_FOUND") break;
-                    
+
                     // If any other log arrives, we simply print it and continue listening
                     if (response.Length > 0) OnLogMessage?.Invoke($"[ESP32] {response}");
                 }
@@ -304,9 +304,9 @@ public class LilkaCommunicationService : IDisposable
             int size = int.Parse(response.Substring(16));
             byte[] buffer = new byte[size];
             int totalRead = 0;
-            
+
             // Read raw bytes
-            while(totalRead < size)
+            while (totalRead < size)
             {
                 int read = _serialPort.BaseStream.Read(buffer, totalRead, size - totalRead);
                 if (read == 0) break;
@@ -319,6 +319,53 @@ public class LilkaCommunicationService : IDisposable
             _isSyncingActive = false;
             // Put the text parser back where it belongs
             _serialPort.DataReceived += SerialPort_DataReceived;
+        }
+    }
+    
+    public async Task<int?> CreateProfileAsync()
+    {
+        if (!IsConnected) return null;
+
+        _isSyncingActive = true;
+        try
+        {
+            _serialPort!.WriteLine("PROFILE_CREATE");
+
+            _ackTcs = new TaskCompletionSource<string>();
+            var timeoutTask = Task.Delay(3000);
+            var completedTask = await Task.WhenAny(_ackTcs.Task, timeoutTask);
+
+            if (completedTask == timeoutTask) return null;
+
+            string response = await _ackTcs.Task;
+            if (response.StartsWith("ACK_PROFILE_CREATE:"))
+            {
+                if (int.TryParse(response.Substring(19), out int newId))
+                {
+                    return newId;
+                }
+            }
+            return null;
+        }
+        finally
+        {
+            _isSyncingActive = false;
+        }
+    }
+
+    public async Task<bool> DeleteProfileAsync(int profileId)
+    {
+        if (!IsConnected) return false;
+
+        _isSyncingActive = true;
+        try
+        {
+            _serialPort!.WriteLine($"PROFILE_DELETE:{profileId}");
+            return await WaitForAck("ACK_PROFILE_DELETE", 5000);
+        }
+        finally
+        {
+            _isSyncingActive = false;
         }
     }
 }

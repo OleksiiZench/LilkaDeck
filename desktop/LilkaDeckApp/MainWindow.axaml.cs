@@ -62,20 +62,12 @@ public partial class MainWindow : Window
         {
             ConnectionStatusText.Text = $"Статус: Підключено ({portName})";
             ConnectionStatusText.Foreground = SolidColorBrush.Parse("#4CAF50");
+            AddProfileButton.IsEnabled = true;
             AppLog($"Підключено до порту {portName}");
             AppLog("Завантаження конфігурації з Лілки...");
         });
 
-        string[] profiles = await _comService.GetProfilesListAsync();
-
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            ProfileIdComboBox.ItemsSource = profiles;
-            if (profiles.Length > 0)
-                ProfileIdComboBox.SelectedIndex = 0;
-            else
-                AppLog("Готово (профілі відсутні)");
-        });
+        await RefreshProfileListAsync();
     }
 
     private void HandleDisconnected()
@@ -84,8 +76,106 @@ public partial class MainWindow : Window
         {
             ConnectionStatusText.Text = "Статус: Пошук пристрою...";
             ConnectionStatusText.Foreground = SolidColorBrush.Parse("#FFA500");
+            AddProfileButton.IsEnabled = false;
+            DeleteProfileButton.IsEnabled = false;
             AppLog("Пристрій відключено. Пошук...", true);
         });
+    }
+
+    private async Task RefreshProfileListAsync(int? selectId = null)
+    {
+        string[] profiles = await _comService.GetProfilesListAsync();
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            ProfileIdComboBox.ItemsSource = profiles;
+            
+            if (profiles.Length > 0)
+            {
+                if (selectId.HasValue && Array.Exists(profiles, p => p == selectId.Value.ToString()))
+                {
+                    ProfileIdComboBox.SelectedItem = selectId.Value.ToString();
+                }
+                else
+                {
+                    ProfileIdComboBox.SelectedIndex = 0;
+                }
+                
+                DeleteProfileButton.IsEnabled = profiles.Length > 1; 
+            }
+            else
+            {
+                AppLog("Готово (профілі відсутні)");
+                DeleteProfileButton.IsEnabled = false;
+            }
+        });
+    }
+
+    private async void OnAddProfileClicked(object? sender, RoutedEventArgs e)
+    {
+        if (!_comService.IsConnected || _isLoadingProfile) return;
+
+        AppLog("Створення нового профілю...");
+        AddProfileButton.IsEnabled = false;
+        DeleteProfileButton.IsEnabled = false;
+
+        try
+        {
+            int? newId = await _comService.CreateProfileAsync();
+            if (newId.HasValue)
+            {
+                AppLog($"Профіль {newId.Value} успішно створено!");
+                await RefreshProfileListAsync(newId.Value);
+            }
+            else
+            {
+                AppLog("Помилка: Лілка не відповіла на створення профілю.", true);
+            }
+        }
+        catch (Exception ex)
+        {
+            HandleError(ex);
+        }
+        finally
+        {
+            AddProfileButton.IsEnabled = true;
+        }
+    }
+
+    private async void OnDeleteProfileClicked(object? sender, RoutedEventArgs e)
+    {
+        if (!_comService.IsConnected || _isLoadingProfile) return;
+        
+        if (ProfileIdComboBox.SelectedItem is not string profileIdStr || !int.TryParse(profileIdStr, out int profileId)) return;
+
+        AppLog($"Видалення профілю {profileId}...");
+        AddProfileButton.IsEnabled = false;
+        DeleteProfileButton.IsEnabled = false;
+
+        try
+        {
+            bool success = await _comService.DeleteProfileAsync(profileId);
+            if (success)
+            {
+                AppLog("Профіль успішно видалено!");
+                _profileData.ClearState(); 
+                await RefreshProfileListAsync(0);
+            }
+            else
+            {
+                AppLog("Помилка при видаленні профілю.", true);
+                DeleteProfileButton.IsEnabled = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            HandleError(ex);
+            DeleteProfileButton.IsEnabled = true;
+        }
+        finally
+        {
+            AddProfileButton.IsEnabled = true;
+        }
     }
 
     // --- AUTO-SYNCHRONIZATION LOGIC ---

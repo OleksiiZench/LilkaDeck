@@ -96,9 +96,28 @@ void SyncManager::handleTextMode() {
         String profiles = _storageManager.getProfilesList();
         Serial.println("PROFILES:" + profiles);
         
-        // Release the shared SPI bus after SD card operations.
-        // This prevents hardware conflicts and ensures the TFT display can instantly 
-        // draw frames (e.g., button outlines) when physical buttons are pressed.
+        digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
+        return;
+    }
+
+    // Host requests creating a new profile
+    if (cmd == "PROFILE_CREATE") {
+        uint8_t newId = _profileManager.createNewProfile();
+        Serial.printf("ACK_PROFILE_CREATE:%d\n", newId);
+        
+        digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
+        return;
+    }
+
+    // Host requests deleting a specific profile
+    if (cmd.startsWith("PROFILE_DELETE:")) {
+        uint8_t idToDelete = cmd.substring(15).toInt();
+        if (_profileManager.deleteProfile(idToDelete)) {
+            Serial.println("ACK_PROFILE_DELETE");
+        } else {
+            Serial.println("ERR:CANNOT_DELETE");
+        }
+        
         digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
         return;
     }

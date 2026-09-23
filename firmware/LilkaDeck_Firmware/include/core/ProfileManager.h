@@ -14,6 +14,10 @@ public:
     void previousProfile();
     void previewColor(const String& hexColor);
 
+    // Profile Lifecycle API
+    uint8_t createNewProfile();
+    bool deleteProfile(uint8_t index);
+    
 private:
     ConfigManager& _config;
     StorageManager& _storage;

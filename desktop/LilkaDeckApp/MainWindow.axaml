@@ -78,10 +78,22 @@
                 </StackPanel>
 
                 <!-- 4. Native USB CDC Synchronization Section -->
-                <TextBlock Text="Синхронізація (PC -> ESP32)" FontSize="20" FontWeight="Bold"/>
-                <Grid ColumnDefinitions="Auto, *">
+                <TextBlock Text="Профілі (ESP32)" FontSize="20" FontWeight="Bold"/>
+                <Grid ColumnDefinitions="Auto, *, Auto, Auto">
                     <TextBlock Grid.Column="0" Text="ID Профілю:" VerticalAlignment="Center" Margin="0,0,10,0"/>
                     <ComboBox x:Name="ProfileIdComboBox" Grid.Column="1" HorizontalAlignment="Stretch" Margin="0,0,0,0" SelectionChanged="OnProfileSelectionChanged"/>
+                
+                    <!-- Add button -->
+                    <Button x:Name="AddProfileButton" Grid.Column="2" Content="+" Width="32" Height="32" 
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center" 
+                            Background="#4CAF50" Foreground="White" FontWeight="Bold" 
+                            Click="OnAddProfileClicked" Margin="0,0,5,0" IsEnabled="False"/>
+                    
+                    <!-- Delete button -->
+                    <Button x:Name="DeleteProfileButton" Grid.Column="3" Content="✕" Width="32" Height="32" 
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center" 
+                            Background="#D32F2F" Foreground="White" FontWeight="Bold" 
+                            Click="OnDeleteProfileClicked" IsEnabled="False"/>
                 </Grid>
                 
                 <!-- File transfer progress bar -->

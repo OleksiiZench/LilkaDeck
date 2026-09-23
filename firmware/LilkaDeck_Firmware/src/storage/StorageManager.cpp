@@ -44,10 +44,61 @@ String StorageManager::readTextFile(const char* path) {
     return content;
 }
 
+bool StorageManager::writeTextFile(const char* path, const char* content) {
+    if (!_isMounted) return false;
+    
+    if (SD.exists(path)) {
+        SD.remove(path);
+    }
+    
+    File file = SD.open(path, FILE_WRITE);
+    if (!file) return false;
+    
+    file.print(content);
+    file.close();
+    return true;
+}
+
 bool StorageManager::createDir(const char* path) {
     if (!_isMounted) return false;
     if (SD.exists(path)) return true;
     return SD.mkdir(path);
+}
+
+// Deletes a directory and all files inside it
+bool StorageManager::deleteDirRecursive(const char* path) {
+    if (!_isMounted) return false;
+    
+    File dir = SD.open(path);
+    if (!dir) return false;
+    
+    bool isDirEmpty = false;
+    while (!isDirEmpty) {
+        File file = dir.openNextFile();
+        if (file) {
+            // Build absolute path to file
+            String filePath = String(path) + "/" + file.name(); 
+            file.close();
+            
+            // Delete the file
+            SD.remove(filePath.c_str());
+            
+            // Rewind directory to avoid skipped files due to FAT table changes
+            dir.rewindDirectory(); 
+        } else {
+            isDirEmpty = true;
+        }
+    }
+    dir.close();
+    
+    // Finally, delete the now-empty directory
+    return SD.rmdir(path);
+}
+
+// Renames a directory or file
+bool StorageManager::renameFileOrDir(const char* oldPath, const char* newPath) {
+    if (!_isMounted) return false;
+    return SD.rename(oldPath, newPath);
 }
 
 bool StorageManager::openFileForWrite(const char* path) {
