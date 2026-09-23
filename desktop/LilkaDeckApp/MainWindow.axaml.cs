@@ -8,6 +8,7 @@ using System.IO;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using LilkaDeckApp.Services;
+using System.Collections.Generic;
 
 namespace LilkaDeckApp;
 
@@ -22,10 +23,22 @@ public partial class MainWindow : Window
 
     private readonly LilkaCommunicationService _comService;
     private readonly ProfileDataService _profileData;
+    private Dictionary<string, Button> _deckButtons;
+    private readonly Dictionary<string, string> _defaultButtonTexts = new()
+    {
+        {"LeftUp", "UP"}, {"LeftLeft", "LEFT"}, {"LeftRight", "RIGHT"}, {"LeftDown", "DOWN"},
+        {"RightUp", "C"}, {"RightLeft", "D"}, {"RightRight", "A"}, {"RightDown", "B"}
+    };
 
     public MainWindow()
     {
         InitializeComponent();
+
+        _deckButtons = new Dictionary<string, Button>
+        {
+            { "LeftUp", BtnLeftUp }, { "LeftLeft", BtnLeftLeft }, { "LeftRight", BtnLeftRight }, { "LeftDown", BtnLeftDown },
+            { "RightUp", BtnRightUp }, { "RightLeft", BtnRightLeft }, { "RightRight", BtnRightRight }, { "RightDown", BtnRightDown }
+        };
 
         _profileData = new ProfileDataService();
         _comService = new LilkaCommunicationService();
@@ -391,6 +404,15 @@ public partial class MainWindow : Window
                 c.NeedsUpload = true;
             });
 
+            _profileData.UpdateConfig(_currentSelectedPosition, c =>
+            {
+                c.IconPath = fileName;
+                c.IconFullPath = cachedPath;
+                c.NeedsUpload = true;
+            });
+
+            UpdateDeckVisuals();
+
             // --- INSTANT SYNCHRONIZATION FOR ICONS ---
             _autoSyncTimer.Stop();
             await PerformSyncAsync();
@@ -421,10 +443,10 @@ public partial class MainWindow : Window
                     ProfileNameTextBox.Text = config.ProfileName;
                     ProfileNameTextBox.TextChanged += OnProfileNameChanged;
 
-                    try 
-                    { 
+                    try
+                    {
                         _lastColor = config.ActiveColor;
-                        ActiveColorPicker.Color = Color.Parse(config.ActiveColor); 
+                        ActiveColorPicker.Color = Color.Parse(config.ActiveColor);
                     }
                     catch { }
 
@@ -445,6 +467,7 @@ public partial class MainWindow : Window
                             }
                         }
                     }
+                    UpdateDeckVisuals();
                 }
             }
             AppLog("Готово до редагування");
@@ -462,5 +485,37 @@ public partial class MainWindow : Window
                 OnDeckButtonClicked(new Button { Tag = _currentSelectedPosition }, new RoutedEventArgs());
             }
         }
+    }
+    
+    private void UpdateDeckVisuals()
+    {
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            foreach (var kvp in _deckButtons)
+            {
+                string pos = kvp.Key;
+                Button btn = kvp.Value;
+                var config = _profileData.GetConfig(pos);
+
+                if (!string.IsNullOrEmpty(config.IconFullPath) && File.Exists(config.IconFullPath))
+                {
+                    // Decode a .raw file into a Bitmap for Avalonia
+                    var bitmap = ImageConverter.DecodeRgb565RawToBitmap(config.IconFullPath);
+                    if (bitmap != null)
+                    {
+                        // Replace the button's text content with an Image component
+                        btn.Content = new Avalonia.Controls.Image 
+                        { 
+                            Source = bitmap, 
+                            Stretch = Stretch.UniformToFill 
+                        };
+                        continue;
+                    }
+                }
+
+                // If there is no icon, return the default text
+                btn.Content = _defaultButtonTexts[pos];
+            }
+        });
     }
 }

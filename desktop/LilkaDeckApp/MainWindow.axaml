@@ -17,19 +17,19 @@
                   ColumnDefinitions="80, 80, 80, 60, 80, 80, 80">
                 
                 <!-- Left Directional Pad (D-Pad) -->
-                <Button Grid.Row="0" Grid.Column="1" Tag="LeftUp" Click="OnDeckButtonClicked" Classes="deck-btn" Content="UP"/>
-                <Button Grid.Row="1" Grid.Column="0" Tag="LeftLeft" Click="OnDeckButtonClicked" Classes="deck-btn" Content="LEFT"/>
-                <Button Grid.Row="1" Grid.Column="2" Tag="LeftRight" Click="OnDeckButtonClicked" Classes="deck-btn" Content="RIGHT"/>
-                <Button Grid.Row="2" Grid.Column="1" Tag="LeftDown" Click="OnDeckButtonClicked" Classes="deck-btn" Content="DOWN"/>
+                <Button x:Name="BtnLeftUp" Grid.Row="0" Grid.Column="1" Tag="LeftUp" Click="OnDeckButtonClicked" Classes="deck-btn" Content="UP"/>
+                <Button x:Name="BtnLeftLeft" Grid.Row="1" Grid.Column="0" Tag="LeftLeft" Click="OnDeckButtonClicked" Classes="deck-btn" Content="LEFT"/>
+                <Button x:Name="BtnLeftRight" Grid.Row="1" Grid.Column="2" Tag="LeftRight" Click="OnDeckButtonClicked" Classes="deck-btn" Content="RIGHT"/>
+                <Button x:Name="BtnLeftDown" Grid.Row="2" Grid.Column="1" Tag="LeftDown" Click="OnDeckButtonClicked" Classes="deck-btn" Content="DOWN"/>
 
                 <!-- Central device display -->
                 <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="3" Background="#111" CornerRadius="10" Margin="10,0"/>
 
-                <!-- Right Action Cluster -->
-                <Button Grid.Row="0" Grid.Column="5" Tag="RightUp" Click="OnDeckButtonClicked" Classes="deck-btn" Content="C"/>
-                <Button Grid.Row="1" Grid.Column="4" Tag="RightLeft" Click="OnDeckButtonClicked" Classes="deck-btn" Content="D"/>
-                <Button Grid.Row="1" Grid.Column="6" Tag="RightRight" Click="OnDeckButtonClicked" Classes="deck-btn" Content="A"/>
-                <Button Grid.Row="2" Grid.Column="5" Tag="RightDown" Click="OnDeckButtonClicked" Classes="deck-btn" Content="B"/>
+               <!-- Right Action Cluster -->
+                <Button x:Name="BtnRightUp" Grid.Row="0" Grid.Column="5" Tag="RightUp" Click="OnDeckButtonClicked" Classes="deck-btn" Content="C"/>
+                <Button x:Name="BtnRightLeft" Grid.Row="1" Grid.Column="4" Tag="RightLeft" Click="OnDeckButtonClicked" Classes="deck-btn" Content="D"/>
+                <Button x:Name="BtnRightRight" Grid.Row="1" Grid.Column="6" Tag="RightRight" Click="OnDeckButtonClicked" Classes="deck-btn" Content="A"/>
+                <Button x:Name="BtnRightDown" Grid.Row="2" Grid.Column="5" Tag="RightDown" Click="OnDeckButtonClicked" Classes="deck-btn" Content="B"/>
             </Grid>
         </Border>
 
@@ -108,12 +108,15 @@
 
     </Grid>
 
-    <!-- Global styles for round virtual macropad buttons -->
+    <!-- Global styles for virtual macropad buttons -->
     <Window.Styles>
         <Style Selector="Button.deck-btn">
-            <Setter Property="Width" Value="70"/>
-            <Setter Property="Height" Value="70"/>
-            <Setter Property="CornerRadius" Value="35"/>
+            <Setter Property="Width" Value="64"/>
+            <Setter Property="Height" Value="64"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Background" Value="#333"/>
@@ -123,8 +126,7 @@
             <Setter Property="FontWeight" Value="Bold"/>
         </Style>
         <Style Selector="Button.deck-btn:pointerover /template/ ContentPresenter">
-            <!-- Color on mouse hover -->
-            <Setter Property="Background" Value="#4CAF50"/>
+            <Setter Property="BorderBrush" Value="#4CAF50"/>
         </Style>
     </Window.Styles>
 </Window>

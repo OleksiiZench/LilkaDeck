@@ -1,6 +1,9 @@
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
+using System.Runtime.InteropServices;
 using System.IO;
 
 namespace LilkaDeckApp;
@@ -59,5 +62,51 @@ public static class ImageConverter
                 bw.Write((ushort)rgb565);
             }
         }
+    }
+
+    /// <summary>
+    /// Decodes a 16-bit RGB565 (.raw) file into a format that Avalonia UI can read (Bgra8888).
+    /// </summary>
+    public static Bitmap? DecodeRgb565RawToBitmap(string rawPath)
+    {
+        try
+        {
+            if (!File.Exists(rawPath)) return null;
+            byte[] rawBytes = File.ReadAllBytes(rawPath);
+            if (rawBytes.Length != 8192) return null;
+
+            var bitmap = new WriteableBitmap(
+                new Avalonia.PixelSize(64, 64),
+                new Avalonia.Vector(96, 96),
+                PixelFormat.Bgra8888,
+                AlphaFormat.Opaque);
+
+            using (var fb = bitmap.Lock())
+            {
+                byte[] bgraPixels = new byte[64 * 64 * 4];
+                for (int i = 0; i < 4096; i++)
+                {
+                    int byteIndex = i * 2;
+                    ushort rgb565 = (ushort)(rawBytes[byteIndex] | (rawBytes[byteIndex + 1] << 8));
+
+                    int r = (rgb565 >> 11) & 0x1F;
+                    int g = (rgb565 >> 5) & 0x3F;
+                    int b = rgb565 & 0x1F;
+
+                    r = (r << 3) | (r >> 2);
+                    g = (g << 2) | (g >> 4);
+                    b = (b << 3) | (b >> 2);
+
+                    bgraPixels[i * 4] = (byte)b;
+                    bgraPixels[i * 4 + 1] = (byte)g;
+                    bgraPixels[i * 4 + 2] = (byte)r;
+                    bgraPixels[i * 4 + 3] = 255;
+                }
+                    
+                Marshal.Copy(bgraPixels, 0, fb.Address, bgraPixels.Length);
+            }
+            return bitmap;
+        }
+        catch { return null; }
     }
 }
