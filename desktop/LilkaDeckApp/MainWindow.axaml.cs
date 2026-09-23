@@ -27,6 +27,9 @@ public partial class MainWindow : Window
     private readonly LilkaCommunicationService _comService;
     private readonly ProfileDataService _profileData;
     private Dictionary<string, Button> _deckButtons;
+
+    public bool IsRealClose { get; set; } = false;
+
     private readonly Dictionary<string, string> _defaultButtonTexts = new()
     {
         {"LeftUp", "UP"}, {"LeftLeft", "LEFT"}, {"LeftRight", "RIGHT"}, {"LeftDown", "DOWN"},
@@ -530,5 +533,18 @@ public partial class MainWindow : Window
                 btn.Content = _defaultButtonTexts[pos];
             }
         });
+    }
+
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        if (!IsRealClose)
+        {
+            e.Cancel = true;
+            this.Hide();
+        }
+        else
+        {
+            base.OnClosing(e);
+        }
     }
 }

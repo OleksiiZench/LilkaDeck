@@ -18,5 +18,6 @@
     </PackageReference>
     <PackageReference Include="SixLabors.ImageSharp" Version="4.1.2" />
     <PackageReference Include="System.IO.Ports" Version="10.0.12" />
+    <AvaloniaResource Include="assets/**/*" />
   </ItemGroup>
 </Project>
