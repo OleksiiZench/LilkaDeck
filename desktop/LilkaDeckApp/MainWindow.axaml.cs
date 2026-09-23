@@ -17,6 +17,8 @@ public partial class MainWindow : Window
     private bool _isLoadingProfile = false;
     private DispatcherTimer _autoSyncTimer;
     private string _lastColor = "";
+    private bool _isDesktopSyncing = false;
+    private bool _pendingSync = false;
 
     private readonly LilkaCommunicationService _comService;
     private readonly ProfileDataService _profileData;
@@ -108,26 +110,43 @@ public partial class MainWindow : Window
     {
         if (!_comService.IsConnected) return;
 
-        try
+        if (_isDesktopSyncing)
         {
-            SyncProgressBar.Value = 0;
-            AppLog("Автосинхронізація...");
-
-            string hexColor = $"#{ActiveColorPicker.Color.R:X2}{ActiveColorPicker.Color.G:X2}{ActiveColorPicker.Color.B:X2}";
-            string profileName = ProfileNameTextBox.Text ?? "Profile";
-            int profileId = int.TryParse(ProfileIdComboBox.SelectedItem?.ToString(), out int id) ? id : 0;
-
-            var payload = _profileData.BuildSyncPayload(profileName, hexColor);
-            var progress = new Progress<int>(percent => SyncProgressBar.Value = percent);
-            var status = new Progress<string>(msg => AppLog(msg));
-
-            await _comService.SyncDataAsync(profileId, payload.jsonBytes, payload.filesToSend, progress, status);
-            AppLog("Збережено на пристрій!");
+            _pendingSync = true; 
+            return;
         }
-        catch (Exception ex)
+
+        _isDesktopSyncing = true;
+
+        while (true)
         {
-            HandleError(ex);
+            _pendingSync = false;
+
+            try
+            {
+                SyncProgressBar.Value = 0;
+                AppLog("Автосинхронізація...");
+
+                string hexColor = $"#{ActiveColorPicker.Color.R:X2}{ActiveColorPicker.Color.G:X2}{ActiveColorPicker.Color.B:X2}";
+                string profileName = ProfileNameTextBox.Text ?? "Profile";
+                int profileId = int.TryParse(ProfileIdComboBox.SelectedItem?.ToString(), out int id) ? id : 0;
+
+                var payload = _profileData.BuildSyncPayload(profileName, hexColor);
+                var progress = new Progress<int>(percent => SyncProgressBar.Value = percent);
+                var status = new Progress<string>(msg => AppLog(msg));
+
+                await _comService.SyncDataAsync(profileId, payload.jsonBytes, payload.filesToSend, progress, status);
+                AppLog("Збережено на пристрій!");
+            }
+            catch (Exception ex)
+            {
+                HandleError(ex);
+            }
+
+            if (!_pendingSync) break; 
         }
+
+        _isDesktopSyncing = false;
     }
 
     // --- SERVICE EVENT HANDLERS ---
