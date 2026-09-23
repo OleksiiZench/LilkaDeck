@@ -95,6 +95,12 @@ void DisplayManager::setIconPressed(IconPosition pos, bool isPressed, uint16_t c
     int32_t x, y;
     getIconCoordinates(pos, x, y);
 
+    // Dummy SPI transaction to stabilize the bus state.
+    // Reasserts TFT_eSPI hardware configuration (clock speed/mode) after SD card reads.
+    _tft.startWrite();
+    _tft.drawPixel(0, 0, TFT_BLACK);
+    _tft.endWrite();
+
     // Apply the dynamic color passed from the ConfigManager, or hide the border if released
     uint16_t drawColor = isPressed ? color : TFT_BLACK;
 
@@ -106,6 +112,11 @@ void DisplayManager::setIconPressed(IconPosition pos, bool isPressed, uint16_t c
 }
 
 void DisplayManager::drawProfileName(const String &name) {
+    // Dummy SPI transaction to stabilize the bus state
+    _tft.startWrite();
+    _tft.drawPixel(0, 0, TFT_BLACK);
+    _tft.endWrite();
+
     _tft.fillRect(0, 224, 280, 16, TFT_BLACK);
     
     _tft.setTextDatum(BC_DATUM);
