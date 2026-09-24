@@ -4,7 +4,8 @@
         Title="LilkaDeck Configurator" 
         Width="1250" Height="650" MinWidth="1150"
         RequestedThemeVariant="Dark"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        Icon="avares://LilkaDeckApp/assets/icons_source/lilka-icon.ico">
 
     <Grid>
         <Grid.ColumnDefinitions>
