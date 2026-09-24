@@ -530,15 +530,19 @@ public partial class MainWindow : Window
                     var bitmap = ImageConverter.DecodeRgb565RawToBitmap(config.IconFullPath);
                     if (bitmap != null)
                     {
+                        var deckImage = new Avalonia.Controls.Image
+                        {
+                            Source = bitmap,
+                            Stretch = Stretch.UniformToFill
+                        };
+                        
+                        RenderOptions.SetBitmapInterpolationMode(deckImage, Avalonia.Media.Imaging.BitmapInterpolationMode.HighQuality);
+
                         btn.Content = new Avalonia.Controls.Border
                         {
-                            CornerRadius = new Avalonia.CornerRadius(4), 
+                            CornerRadius = new Avalonia.CornerRadius(4),
                             ClipToBounds = true,
-                            Child = new Avalonia.Controls.Image
-                            {
-                                Source = bitmap,
-                                Stretch = Stretch.UniformToFill
-                            }
+                            Child = deckImage
                         };
                         continue;
                     }

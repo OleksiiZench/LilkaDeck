@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="LilkaDeckApp.MainWindow"
         Title="LilkaDeck Configurator" 
-        Width="1250" Height="650" MinWidth="1150"
+        Width="1250" Height="670" MinWidth="1150"
         RequestedThemeVariant="Dark"
         WindowStartupLocation="CenterScreen"
         Icon="avares://LilkaDeckApp/assets/icons_source/lilka-icon.ico">
@@ -54,26 +54,27 @@
                     <Button x:Name="BtnNextProfile" Grid.Column="2" Content="▶" FontSize="20" Background="Transparent" Foreground="White" BorderThickness="0" Click="OnNextProfileClicked"/>
                 </Grid>
 
-                <!-- Virtual Macropad Grid (Mirrors physical device layout) -->
-                <Grid Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" 
-                      RowDefinitions="80, 80, 80" 
-                      ColumnDefinitions="80, 80, 80, 60, 80, 80, 80">
+                <Viewbox Grid.Row="1" Stretch="Uniform" Margin="40" MaxWidth="750" MaxHeight="400">
+                    <Grid VerticalAlignment="Center" HorizontalAlignment="Center" 
+                          RowDefinitions="80, 80, 80" 
+                          ColumnDefinitions="80, 80, 80, 60, 80, 80, 80">
                     
-                    <!-- Left Directional Pad (D-Pad) Cluster -->
-                    <Button x:Name="BtnLeftUp" DragDrop.AllowDrop="True" Grid.Row="0" Grid.Column="1" Tag="LeftUp" Click="OnDeckButtonClicked" Classes="deck-btn" Content="UP"/>
-                    <Button x:Name="BtnLeftLeft" DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="0" Tag="LeftLeft" Click="OnDeckButtonClicked" Classes="deck-btn" Content="LEFT"/>
-                    <Button x:Name="BtnLeftRight" DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="2" Tag="LeftRight" Click="OnDeckButtonClicked" Classes="deck-btn" Content="RIGHT"/>
-                    <Button x:Name="BtnLeftDown" DragDrop.AllowDrop="True" Grid.Row="2" Grid.Column="1" Tag="LeftDown" Click="OnDeckButtonClicked" Classes="deck-btn" Content="DOWN"/>
+                        <!-- Left Directional Pad (D-Pad) Cluster -->
+                        <Button x:Name="BtnLeftUp" DragDrop.AllowDrop="True" Grid.Row="0" Grid.Column="1" Tag="LeftUp" Click="OnDeckButtonClicked" Classes="deck-btn" Content="UP"/>
+                        <Button x:Name="BtnLeftLeft" DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="0" Tag="LeftLeft" Click="OnDeckButtonClicked" Classes="deck-btn" Content="LEFT"/>
+                        <Button x:Name="BtnLeftRight" DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="2" Tag="LeftRight" Click="OnDeckButtonClicked" Classes="deck-btn" Content="RIGHT"/>
+                        <Button x:Name="BtnLeftDown" DragDrop.AllowDrop="True" Grid.Row="2" Grid.Column="1" Tag="LeftDown" Click="OnDeckButtonClicked" Classes="deck-btn" Content="DOWN"/>
 
-                    <!-- Central TFT Display Placeholder -->
-                    <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="3" Background="#111" CornerRadius="10" Margin="10,0"/>
+                        <!-- Central TFT Display Placeholder -->
+                        <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="3" Background="#111" CornerRadius="10" Margin="10,0"/>
 
-                    <!-- Right Action Button Cluster -->
-                    <Button x:Name="BtnRightUp" DragDrop.AllowDrop="True" Grid.Row="0" Grid.Column="5" Tag="RightUp" Click="OnDeckButtonClicked" Classes="deck-btn" Content="C"/>
-                    <Button x:Name="BtnRightLeft" DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="4" Tag="RightLeft" Click="OnDeckButtonClicked" Classes="deck-btn" Content="D"/>
-                    <Button x:Name="BtnRightRight" DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="6" Tag="RightRight" Click="OnDeckButtonClicked" Classes="deck-btn" Content="A"/>
-                    <Button x:Name="BtnRightDown" DragDrop.AllowDrop="True" Grid.Row="2" Grid.Column="5" Tag="RightDown" Click="OnDeckButtonClicked" Classes="deck-btn" Content="B"/>
-                </Grid>
+                        <!-- Right Action Button Cluster -->
+                        <Button x:Name="BtnRightUp" DragDrop.AllowDrop="True" Grid.Row="0" Grid.Column="5" Tag="RightUp" Click="OnDeckButtonClicked" Classes="deck-btn" Content="C"/>
+                        <Button x:Name="BtnRightLeft" DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="4" Tag="RightLeft" Click="OnDeckButtonClicked" Classes="deck-btn" Content="D"/>
+                        <Button x:Name="BtnRightRight" DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="6" Tag="RightRight" Click="OnDeckButtonClicked" Classes="deck-btn" Content="A"/>
+                        <Button x:Name="BtnRightDown" DragDrop.AllowDrop="True" Grid.Row="2" Grid.Column="5" Tag="RightDown" Click="OnDeckButtonClicked" Classes="deck-btn" Content="B"/>
+                    </Grid>
+                </Viewbox>
             </Grid>
         </Border>
 
