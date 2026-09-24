@@ -108,9 +108,23 @@
                     
                     <!-- Icon Selection -->
                     <TextBlock Text="Іконка (PNG, JPG):"/>
-                    <Grid ColumnDefinitions="*, Auto">
+                    <Grid ColumnDefinitions="*, Auto, Auto">
                         <TextBox x:Name="IconPathTextBox" Grid.Column="0" IsReadOnly="True" PlaceholderText="Шлях до файлу..." Margin="0,0,10,0"/>
-                        <Button Grid.Column="1" Content="Огляд..." Click="OnBrowseIconClicked"/>
+                        
+                        <!-- Gallery Button -->
+                        <Button x:Name="GalleryButton" Grid.Column="1" Content="Галерея" Click="OnGalleryClicked" Margin="0,0,5,0">
+                            <Button.Flyout>
+                                <Flyout Placement="Bottom">
+                                    <ScrollViewer MaxHeight="300" MaxWidth="300">
+                                        <WrapPanel x:Name="GalleryWrapPanel" ItemWidth="64" ItemHeight="64" MaxWidth="280">
+                                            <!-- Standard icons will be dynamically injected here via C# -->
+                                        </WrapPanel>
+                                    </ScrollViewer>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                        
+                        <Button Grid.Column="2" Content="Огляд..." Click="OnBrowseIconClicked"/>
                     </Grid>
 
                     <!-- Action Type Dropdown (Shortcut vs Launch) -->

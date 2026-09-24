@@ -20,4 +20,10 @@
     <PackageReference Include="System.IO.Ports" Version="10.0.12" />
     <AvaloniaResource Include="assets/**/*" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="assets\standard_icons\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

@@ -4,7 +4,9 @@ using Avalonia.Platform.Storage;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.Input;
-using Avalonia.Platform.Storage;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
+using System.Reflection;
 using System.Linq;
 using System;
 using System.IO;
@@ -559,11 +561,11 @@ public partial class MainWindow : Window
     private async void OnDrop(object? sender, DragEventArgs e)
     {
         var files = e.DataTransfer.TryGetFiles()?.ToArray();
-        
+
         if (files != null && files.Length > 0 && e.Source is Control targetControl)
         {
             Button? targetButton = targetControl as Button ?? targetControl.Parent as Button;
-            
+
             if (targetButton != null && targetButton.Tag is string position)
             {
                 if (_currentSelectedPosition != position)
@@ -602,7 +604,7 @@ public partial class MainWindow : Window
                 }
 
                 IconPathTextBox.Text = fileName;
-                
+
                 string cachedPath = _profileData.CacheImage(rawOutputPath, fileName);
 
                 _profileData.UpdateConfig(position, c =>
@@ -616,6 +618,111 @@ public partial class MainWindow : Window
 
                 _autoSyncTimer.Stop();
                 await PerformSyncAsync();
+            }
+        }
+    }
+    
+    // --- GALLERY LOGIC ---
+
+    private void OnGalleryClicked(object? sender, RoutedEventArgs e)
+    {
+        GalleryWrapPanel.Children.Clear();
+
+        try
+        {
+            string appDir = AppDomain.CurrentDomain.BaseDirectory;
+            string galleryDir = Path.Combine(appDir, "assets", "standard_icons");
+
+            if (!Directory.Exists(galleryDir))
+            {
+                Directory.CreateDirectory(galleryDir);
+                AppLog("Створено папку для галереї: " + galleryDir);
+                return;
+            }
+
+            var files = Directory.GetFiles(galleryDir)
+                                 .Where(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || 
+                                             f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                                             f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
+                                 .ToArray();
+
+            if (files.Length == 0)
+            {
+                AppLog("Галерея порожня. Додайте картинки в папку Assets/StandardIcons.");
+                return;
+            }
+
+            foreach (string file in files)
+            {
+                var bitmap = new Bitmap(file);
+                
+                var image = new Avalonia.Controls.Image 
+                { 
+                    Source = bitmap,
+                    Stretch = Stretch.Uniform 
+                };
+
+                RenderOptions.SetBitmapInterpolationMode(image, Avalonia.Media.Imaging.BitmapInterpolationMode.HighQuality);
+
+                var btn = new Button
+                {
+                    Content = image,
+                    Width = 60,
+                    Height = 60,
+                    Margin = new Avalonia.Thickness(2),
+                    Padding = new Avalonia.Thickness(6),
+                    Tag = file,
+                    Background = SolidColorBrush.Parse("#333")
+                };
+
+                btn.Click += OnGalleryIconSelected;
+                
+                GalleryWrapPanel.Children.Add(btn);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog($"Помилка завантаження галереї: {ex.Message}", true);
+        }
+    }
+
+    private async void OnGalleryIconSelected(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string inputPath)
+        {
+            if (string.IsNullOrEmpty(_currentSelectedPosition)) return;
+
+            string fileName = Path.GetFileName(inputPath);
+            AppLog($"Обрано з галереї: {fileName}");
+
+            string rawOutputPath = Path.Combine(Path.GetDirectoryName(inputPath)!, Path.GetFileNameWithoutExtension(fileName) + ".raw");
+
+            try
+            {
+                ImageConverter.ConvertToRgb565Raw(inputPath, rawOutputPath);
+                fileName = Path.GetFileName(rawOutputPath);
+
+                IconPathTextBox.Text = fileName;
+                
+                string cachedPath = _profileData.CacheImage(rawOutputPath, fileName);
+
+                _profileData.UpdateConfig(_currentSelectedPosition, c =>
+                {
+                    c.IconPath = fileName;
+                    c.IconFullPath = cachedPath;
+                    c.NeedsUpload = true;
+                });
+
+                UpdateDeckVisuals();
+
+                GalleryButton.Flyout?.Hide();
+
+                _autoSyncTimer.Stop();
+                await PerformSyncAsync();
+            }
+            catch (Exception ex)
+            {
+                AppLog($"Помилка застосування іконки: {ex.Message}", true);
             }
         }
     }
