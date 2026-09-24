@@ -530,10 +530,15 @@ public partial class MainWindow : Window
                     var bitmap = ImageConverter.DecodeRgb565RawToBitmap(config.IconFullPath);
                     if (bitmap != null)
                     {
-                        btn.Content = new Avalonia.Controls.Image
+                        btn.Content = new Avalonia.Controls.Border
                         {
-                            Source = bitmap,
-                            Stretch = Stretch.UniformToFill
+                            CornerRadius = new Avalonia.CornerRadius(4), 
+                            ClipToBounds = true,
+                            Child = new Avalonia.Controls.Image
+                            {
+                                Source = bitmap,
+                                Stretch = Stretch.UniformToFill
+                            }
                         };
                         continue;
                     }

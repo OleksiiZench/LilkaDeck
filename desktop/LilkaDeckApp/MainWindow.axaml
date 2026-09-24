@@ -170,16 +170,23 @@
     <Window.Styles>
         <!-- Base style for virtual macropad buttons -->
         <Style Selector="Button.deck-btn">
-            <Setter Property="Width" Value="64"/>
-            <Setter Property="Height" Value="64"/>
-            <Setter Property="CornerRadius" Value="0"/> <!-- Strict squares to match TFT resolution -->
-            <Setter Property="Padding" Value="0"/> <!-- Zero padding allows the Image to fill 100% of the button -->
+            <!-- 1. Збільшуємо розмір самої кнопки (було 64) -->
+            <Setter Property="Width" Value="74"/>
+            <Setter Property="Height" Value="74"/>
+            <Setter Property="CornerRadius" Value="12"/> 
+            <Setter Property="ClipToBounds" Value="True"/> 
+            
+            <!-- 2. Додаємо внутрішній відступ, щоб відірвати іконку від рамки -->
+            <Setter Property="Padding" Value="5"/>
+            
+            <!-- 3. Робимо рамку товщою (було 1) та трохи світлішою для контрасту -->
             <Setter Property="BorderThickness" Value="2"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="#555"/> 
+            
             <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Background" Value="#333"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#000000"/> 
+            <Setter Property="Foreground" Value="#888"/> 
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="FontWeight" Value="Bold"/>
@@ -187,8 +194,9 @@
         
         <!-- Hover state for virtual macropad buttons -->
         <Style Selector="Button.deck-btn:pointerover /template/ ContentPresenter">
-            <!-- Highlights the border instead of modifying the background to prevent obscuring rendered icons -->
+            <!-- Зберігаємо товщину рамки при наведенні, змінюємо лише колір -->
             <Setter Property="BorderBrush" Value="#4CAF50"/>
+            <Setter Property="Background" Value="#000000"/>
         </Style>
     </Window.Styles>
 </Window>
