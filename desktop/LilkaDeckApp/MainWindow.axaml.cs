@@ -3,12 +3,17 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.Input;
+using Avalonia.Platform.Storage;
+using System.Linq;
 using System;
 using System.IO;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using LilkaDeckApp.Services;
 using System.Collections.Generic;
+
+using LilkaDeckApp.Services;
+
 
 namespace LilkaDeckApp;
 
@@ -39,6 +44,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        AddHandler(DragDrop.DropEvent, OnDrop);
 
         _deckButtons = new Dictionary<string, Button>
         {
@@ -545,6 +552,71 @@ public partial class MainWindow : Window
         else
         {
             base.OnClosing(e);
+        }
+    }
+
+    // --- DRAG AND DROP LOGIC ---
+    private async void OnDrop(object? sender, DragEventArgs e)
+    {
+        var files = e.DataTransfer.TryGetFiles()?.ToArray();
+        
+        if (files != null && files.Length > 0 && e.Source is Control targetControl)
+        {
+            Button? targetButton = targetControl as Button ?? targetControl.Parent as Button;
+            
+            if (targetButton != null && targetButton.Tag is string position)
+            {
+                if (_currentSelectedPosition != position)
+                {
+                    OnDeckButtonClicked(targetButton, new RoutedEventArgs());
+                }
+
+                string? inputPath = files[0].TryGetLocalPath() ?? files[0].Path.LocalPath;
+                if (string.IsNullOrEmpty(inputPath)) return;
+
+                string fileName = files[0].Name;
+                string extension = Path.GetExtension(fileName).ToLower();
+
+                if (extension != ".png" && extension != ".jpg" && extension != ".jpeg" && extension != ".raw")
+                {
+                    AppLog("Помилка: підтримуються лише формати PNG, JPG, JPEG та RAW.", true);
+                    return;
+                }
+
+                AppLog($"Обробка файлу {fileName} для кнопки {position}...");
+                string rawOutputPath = inputPath;
+
+                if (extension != ".raw")
+                {
+                    rawOutputPath = Path.Combine(Path.GetDirectoryName(inputPath)!, Path.GetFileNameWithoutExtension(fileName) + ".raw");
+                    try
+                    {
+                        ImageConverter.ConvertToRgb565Raw(inputPath, rawOutputPath);
+                        fileName = Path.GetFileName(rawOutputPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLog($"Помилка конвертації: {ex.Message}", true);
+                        return;
+                    }
+                }
+
+                IconPathTextBox.Text = fileName;
+                
+                string cachedPath = _profileData.CacheImage(rawOutputPath, fileName);
+
+                _profileData.UpdateConfig(position, c =>
+                {
+                    c.IconPath = fileName;
+                    c.IconFullPath = cachedPath;
+                    c.NeedsUpload = true;
+                });
+
+                UpdateDeckVisuals();
+
+                _autoSyncTimer.Stop();
+                await PerformSyncAsync();
+            }
         }
     }
 }
