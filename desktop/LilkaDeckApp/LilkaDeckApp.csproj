@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <ApplicationIcon>assets/icons_source/lilka-icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
