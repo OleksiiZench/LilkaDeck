@@ -17,10 +17,27 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        if (ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
         {
-            _mainWindow = new MainWindow();
-            desktop.MainWindow = _mainWindow;
+            var mainWindow = new MainWindow();
+            desktop.MainWindow = mainWindow;
+
+            Program.ShowWindowAction = () =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    mainWindow.Show();
+                    
+                    if (mainWindow.WindowState == Avalonia.Controls.WindowState.Minimized)
+                    {
+                        mainWindow.WindowState = Avalonia.Controls.WindowState.Normal;
+                    }
+                    
+                    mainWindow.Activate();
+                    mainWindow.Topmost = true;
+                    mainWindow.Topmost = false; 
+                });
+            };
         }
 
         base.OnFrameworkInitializationCompleted();
