@@ -4,23 +4,37 @@ using System.IO;
 using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 
 namespace LilkaDeckApp;
 
 class Program
 {
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern void _exit(int status);
+
     private static FileStream? _lockFile;
     public static Action? ShowWindowAction;
+    private static int _shuttingDown = 0;
 
-    // Додаємо токен скасування для керування фоновим процесом
     private static readonly CancellationTokenSource _cts = new CancellationTokenSource();
 
     [STAThread]
     public static void Main(string[] args)
     {
-        // Перехоплюємо сигнал вимкнення від Linux (SIGTERM) або закриття через термінал (Ctrl+C)
         AppDomain.CurrentDomain.ProcessExit += (sender, e) => Shutdown();
-        Console.CancelKeyPress += (sender, e) => Shutdown();
+
+        PosixSignalRegistration.Create(PosixSignal.SIGINT, ctx =>
+        {
+            ctx.Cancel = true;
+            Shutdown();
+        });
+        PosixSignalRegistration.Create(PosixSignal.SIGTERM, ctx =>
+        {
+            ctx.Cancel = true;
+            Shutdown();
+        });
 
         string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         string lockDir = Path.Combine(appDataPath, "LilkaDeck");
@@ -33,32 +47,30 @@ class Program
         }
         catch (IOException)
         {
-            // Ми дублікат. Відправляємо сигнал і закриваємось.
             SendShowSignal();
             return;
         }
 
-        // Передаємо токен у фоновий потік
         StartIpcServer();
 
         try
         {
-            // Запускаємо інтерфейс
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
         finally
         {
-            // Якщо вікно закрили хрестиком, також коректно прибираємо за собою
             Shutdown();
         }
     }
 
-    // Метод для миттєвого та чистого звільнення ресурсів
     private static void Shutdown()
     {
-        _cts.Cancel();       // Зупиняємо цикл IPC
-        _lockFile?.Dispose(); // Знімаємо блокування з файлу
-        Environment.Exit(0);  // Миттєво повідомляємо Linux, що ми завершили роботу
+        if (Interlocked.Exchange(ref _shuttingDown, 1) != 0) return;
+
+        _cts.Cancel();
+        _lockFile?.Dispose();
+
+        _exit(0);
     }
 
     private static void SendShowSignal()
@@ -77,14 +89,12 @@ class Program
     {
         Task.Run(async () =>
         {
-            // Цикл працює, поки не надійде сигнал скасування (_cts.Cancel)
             while (!_cts.Token.IsCancellationRequested)
             {
                 try
                 {
                     using var server = new NamedPipeServerStream("LilkaDeck_IPC_Pipe", PipeDirection.In, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
 
-                    // Тепер сервер не зависає назавжди, а може бути перерваний токеном
                     await server.WaitForConnectionAsync(_cts.Token);
 
                     using var reader = new StreamReader(server);
@@ -97,12 +107,10 @@ class Program
                 }
                 catch (OperationCanceledException)
                 {
-                    // Це нормальне завершення роботи при вимкненні ПК. Просто виходимо з циклу.
                     break;
                 }
                 catch (Exception)
                 {
-                    // Ігноруємо інші помилки (наприклад, якщо дублікат від'єднався завчасно)
                 }
             }
         }, _cts.Token);
