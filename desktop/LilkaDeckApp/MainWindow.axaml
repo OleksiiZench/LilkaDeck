@@ -138,7 +138,18 @@
 
                     <!-- Action Payload Input -->
                     <TextBlock x:Name="ActionHintTextBlock" Text="Дії (через кому):" Margin="0,5,0,0"/>
-                    <TextBox x:Name="ActionsTextBox" PlaceholderText="CTRL, ALT, T" TextChanged="OnActionsTextChanged"/>
+                    <TextBox x:Name="ActionsTextBox" PlaceholderText="CTRL, ALT, T" TextChanged="OnActionsTextChanged" KeyDown="OnActionsTextBoxKeyDown"/>
+                    <TextBlock Text="Або оберіть медіа-дію:" Foreground="#888" FontSize="12" Margin="0,5,0,0"/>
+                        <WrapPanel x:Name="MediaButtonsPanel">
+                            <Button Content="⏯ Play/Pause" Tag="MEDIA_PLAY_PAUSE" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
+                            <Button Content="⏭ Next" Tag="MEDIA_NEXT" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
+                            <Button Content="⏮ Prev" Tag="MEDIA_PREV" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
+                            <Button Content="🔊 Vol+" Tag="MEDIA_VOL_UP" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
+                            <Button Content="🔉 Vol-" Tag="MEDIA_VOL_DOWN" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
+                            <Button Content="🔇 Mute" Tag="MEDIA_MUTE" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
+                            <Button Content="☀ Brightness+" Tag="MEDIA_BRIGHTNESS_UP" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
+                            <Button Content="🔅 Brightness-" Tag="MEDIA_BRIGHTNESS_DOWN" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
+                        </WrapPanel>
                 </StackPanel>
 
                 <Separator Background="#555" Margin="0,5"/>

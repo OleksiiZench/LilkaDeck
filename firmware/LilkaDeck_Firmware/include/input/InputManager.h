@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <USBHIDKeyboard.h>
+#include <USBHIDConsumerControl.h>
 #include "display/DisplayManager.h"
 #include "config/ConfigManager.h"
 
@@ -33,6 +34,7 @@ public:
 
 private:
     USBHIDKeyboard& _keyboard;
+    USBHIDConsumerControl _mediaKeyboard;
     ConfigManager& _configManager;
     DisplayManager& _displayManager;
     ProfileManager& _profileManager;
@@ -45,4 +47,8 @@ private:
     
     // Translates configuration string values into USB HID modifier/key codes
     uint8_t stringToKeycode(const String& keyStr);
+
+    // Media/consumer-control actions use a separate USB HID page ("MEDIA_" prefix)
+    bool isMediaAction(const String& action);
+    void executeMediaAction(const String& action);
 };

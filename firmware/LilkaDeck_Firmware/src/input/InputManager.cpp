@@ -25,6 +25,8 @@ InputManager::InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManage
 }
 
 void InputManager::begin() {
+    _mediaKeyboard.begin();
+
     for (int i = 0; i < static_cast<int>(ButtonID::Count); i++) {
         pinMode(_buttons[i].pin, INPUT_PULLUP);
     }
@@ -69,38 +71,55 @@ void InputManager::update() {
                 // Handle Falling Edge (Button Pressed)
                 if (btn.currentState == LOW) {
                     IconPosition pos;
-                    
-                    if (getIconPositionForButton(btn.id, pos)) {
+
+                    if (getIconPositionForButton(btn.id, pos))
+                    {
                         Serial.printf("[INPUT] Pressed GPIO %d (Macro triggered)\n", btn.pin);
-                        
+
                         // Execute immediate visual feedback using the dynamic color from JSON
                         _displayManager.setIconPressed(pos, true, _configManager.getActiveColor());
 
-                        const auto& configuredButtons = _configManager.getButtons();
+                        const auto &configuredButtons = _configManager.getButtons();
                         auto it = configuredButtons.find(pos);
-                        
-                        if (it != configuredButtons.end()) {
-                            const ButtonConfig& btnConfig = it->second;
-                            const std::vector<String>& actions = btnConfig.actions;
-                            
+
+                        if (it != configuredButtons.end())
+                        {
+                            const ButtonConfig &btnConfig = it->second;
+                            const std::vector<String> &actions = btnConfig.actions;
+
                             // Hybrid Execution Logic
-                            if (btnConfig.type == "launch") {
+                            if (btnConfig.type == "launch")
+                            {
                                 // Request the companion desktop app to launch the specified target
-                                if (!actions.empty()) {
+                                if (!actions.empty())
+                                {
                                     String command = "EXECUTE:" + actions[0];
                                     Serial.println(command);
                                 }
-                            } else {
-                                // Default HID Keyboard emulation
-                                for (const String& action : actions) {
-                                    uint8_t keycode = stringToKeycode(action);
-                                    if (keycode > 0) {
-                                        _keyboard.press(keycode);
+                            }
+                            else
+                            {
+                                // Default HID Keyboard / Media emulation
+                                for (const String &action : actions)
+                                {
+                                    if (isMediaAction(action))
+                                    {
+                                        executeMediaAction(action);
+                                    }
+                                    else
+                                    {
+                                        uint8_t keycode = stringToKeycode(action);
+                                        if (keycode > 0)
+                                        {
+                                            _keyboard.press(keycode);
+                                        }
                                     }
                                 }
                             }
                         }
-                    } else {
+                    }
+                    else
+                    {
                         // System button pressed (Select/Start)
                         if (btn.id == ButtonID::Select) {
                             Serial.println("[INPUT] Select -> Previous Profile");
@@ -133,33 +152,97 @@ void InputManager::update() {
 }
 
 uint8_t InputManager::stringToKeycode(const String& keyStr) {
-    if (keyStr == "CTRL") return KEY_LEFT_CTRL;
+    // Modifiers
+    if (keyStr == "CTRL")  return KEY_LEFT_CTRL;
     if (keyStr == "SHIFT") return KEY_LEFT_SHIFT;
-    if (keyStr == "ALT") return KEY_LEFT_ALT;
-    if (keyStr == "GUI") return KEY_LEFT_GUI; 
-    
-    if (keyStr == "F5") return KEY_F5;
+    if (keyStr == "ALT")   return KEY_LEFT_ALT;
+    if (keyStr == "GUI")   return KEY_LEFT_GUI;
+
+    // Function keys
+    if (keyStr == "F1")  return KEY_F1;
+    if (keyStr == "F2")  return KEY_F2;
+    if (keyStr == "F3")  return KEY_F3;
+    if (keyStr == "F4")  return KEY_F4;
+    if (keyStr == "F5")  return KEY_F5;
+    if (keyStr == "F6")  return KEY_F6;
+    if (keyStr == "F7")  return KEY_F7;
+    if (keyStr == "F8")  return KEY_F8;
+    if (keyStr == "F9")  return KEY_F9;
+    if (keyStr == "F10") return KEY_F10;
+    if (keyStr == "F11") return KEY_F11;
     if (keyStr == "F12") return KEY_F12;
-    
-    if (keyStr == "M") return 'm';
-    if (keyStr == "A") return 'a';
-    if (keyStr == "T") return 't';
-    if (keyStr == "B") return 'b';
-    if (keyStr == "S") return 's';
-    
+
+    // Navigation / editing
+    if (keyStr == "UP")        return KEY_UP_ARROW;
+    if (keyStr == "DOWN")      return KEY_DOWN_ARROW;
+    if (keyStr == "LEFT")      return KEY_LEFT_ARROW;
+    if (keyStr == "RIGHT")     return KEY_RIGHT_ARROW;
+    if (keyStr == "HOME")      return KEY_HOME;
+    if (keyStr == "END")       return KEY_END;
+    if (keyStr == "PAGEUP")    return KEY_PAGE_UP;
+    if (keyStr == "PAGEDOWN")  return KEY_PAGE_DOWN;
+    if (keyStr == "INSERT")    return KEY_INSERT;
+    if (keyStr == "DELETE")    return KEY_DELETE;
+    if (keyStr == "BACKSPACE") return KEY_BACKSPACE;
+    if (keyStr == "TAB")       return KEY_TAB;
+
+    // Whitespace / control
     if (keyStr == "SPACE") return ' ';
     if (keyStr == "ENTER") return KEY_RETURN;
-    if (keyStr == "ESC") return KEY_ESC;
+    if (keyStr == "ESC")   return KEY_ESC;
 
-    // Fallback parser: cast arbitrary single-character strings to valid USB HID ASCII bounds
+    // Punctuation
+    if (keyStr == "MINUS")     return '-';
+    if (keyStr == "EQUALS")    return '=';
+    if (keyStr == "COMMA")     return ',';
+    if (keyStr == "PERIOD")    return '.';
+    if (keyStr == "SLASH")     return '/';
+    if (keyStr == "SEMICOLON") return ';';
+    if (keyStr == "QUOTE")     return '\'';
+    if (keyStr == "BACKSLASH") return '\\';
+    if (keyStr == "LBRACKET")  return '[';
+    if (keyStr == "RBRACKET")  return ']';
+    if (keyStr == "GRAVE")     return '`';
+
+    // Digits
+    if (keyStr.length() == 1 && keyStr.charAt(0) >= '0' && keyStr.charAt(0) <= '9') {
+        return keyStr.charAt(0);
+    }
+
+    // Letters (A-Z single-char tokens from KeyCaptureMap)
     if (keyStr.length() == 1) {
         char c = keyStr.charAt(0);
         if (c >= 'A' && c <= 'Z') {
-            return c + 32; 
+            return c + 32; // USB HID expects lowercase ASCII for letter keys
         }
-        return c;
+        return c; // Fallback for any other raw single character
     }
 
     Serial.printf("[WARN] Unmapped keycode string: %s\n", keyStr.c_str());
     return 0;
+}
+
+bool InputManager::isMediaAction(const String& action) {
+    return action.startsWith("MEDIA_");
+}
+
+void InputManager::executeMediaAction(const String& action) {
+    uint16_t code = 0;
+
+    if (action == "MEDIA_PLAY_PAUSE")           code = CONSUMER_CONTROL_PLAY_PAUSE;
+    else if (action == "MEDIA_NEXT")            code = CONSUMER_CONTROL_SCAN_NEXT;
+    else if (action == "MEDIA_PREV")            code = CONSUMER_CONTROL_SCAN_PREVIOUS;
+    else if (action == "MEDIA_VOL_UP")          code = CONSUMER_CONTROL_VOLUME_INCREMENT;
+    else if (action == "MEDIA_VOL_DOWN")        code = CONSUMER_CONTROL_VOLUME_DECREMENT;
+    else if (action == "MEDIA_MUTE")            code = CONSUMER_CONTROL_MUTE;
+    else if (action == "MEDIA_BRIGHTNESS_UP")   code = CONSUMER_CONTROL_BRIGHTNESS_INCREMENT;
+    else if (action == "MEDIA_BRIGHTNESS_DOWN") code = CONSUMER_CONTROL_BRIGHTNESS_DECREMENT;
+    else {
+        Serial.printf("[WARN] Unmapped media action: %s\n", action.c_str());
+        return;
+    }
+
+    Serial.printf("[HID] Sending Media: %s\n", action.c_str());
+    _mediaKeyboard.press(code);
+    _mediaKeyboard.release();
 }

@@ -421,7 +421,9 @@ public partial class MainWindow : Window
             IconPathTextBox.Text = config.IconPath;
 
             ActionsTextBox.TextChanged -= OnActionsTextChanged;
-            ActionsTextBox.Text = config.Actions;
+            ActionsTextBox.Text = config.ActionType == "shortcut"
+                ? config.Actions.Replace(", ", " + ")
+                : config.Actions;
             ActionsTextBox.TextChanged += OnActionsTextChanged;
 
             ActionTypeComboBox.SelectionChanged -= OnActionTypeChanged;
@@ -446,13 +448,17 @@ public partial class MainWindow : Window
     {
         if (type == "shortcut")
         {
-            ActionHintTextBlock.Text = "Дії (через кому):";
-            ActionsTextBox.PlaceholderText = "CTRL, ALT, T";
+            ActionHintTextBlock.Text = "Комбінація клавіш або медіа-дія:";
+            ActionsTextBox.PlaceholderText = "Клікніть і натисніть комбінацію...";
+            ActionsTextBox.IsReadOnly = true;
+            MediaButtonsPanel.IsVisible = true;
         }
         else
         {
             ActionHintTextBlock.Text = "Шлях до програми або URL:";
             ActionsTextBox.PlaceholderText = @"C:\Apps\Discord.exe або https://youtube.com";
+            ActionsTextBox.IsReadOnly = false;
+            MediaButtonsPanel.IsVisible = false;
         }
     }
 
@@ -465,6 +471,48 @@ public partial class MainWindow : Window
             _profileData.UpdateConfig(_currentSelectedPosition, c => c.Actions = tb.Text ?? "");
             TriggerAutoSync();
         }
+    }
+
+    private void OnActionsTextBoxKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_currentSelectedPosition)) return;
+
+        var config = _profileData.GetConfig(_currentSelectedPosition);
+        if (config.ActionType != "shortcut") return;
+
+        e.Handled = true;
+
+        if (e.Key == Avalonia.Input.Key.Back || e.Key == Avalonia.Input.Key.Delete)
+        {
+            ActionsTextBox.Text = "";
+            _profileData.UpdateConfig(_currentSelectedPosition, c => c.Actions = "");
+            TriggerAutoSync();
+            return;
+        }
+
+        if (KeyCaptureMap.ModifierKeys.Contains(e.Key)) return;
+
+        AppLog($"DEBUG KeyDown: Key={e.Key}, Modifiers={e.KeyModifiers}");
+
+        if (!KeyCaptureMap.Map.TryGetValue(e.Key, out string? mainToken))
+        {
+            AppLog($"Клавіша {e.Key} поки не підтримується прошивкою.", true);
+            return;
+        }
+
+        var tokens = new System.Collections.Generic.List<string>();
+        if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control)) tokens.Add("CTRL");
+        if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift)) tokens.Add("SHIFT");
+        if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Alt)) tokens.Add("ALT");
+        if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Meta)) tokens.Add("GUI");
+        tokens.Add(mainToken);
+
+        string stored = string.Join(", ", tokens);
+        string display = string.Join(" + ", tokens);
+
+        ActionsTextBox.Text = display;
+        _profileData.UpdateConfig(_currentSelectedPosition, c => c.Actions = stored);
+        TriggerAutoSync();
     }
 
     private async void OnBrowseIconClicked(object? sender, RoutedEventArgs e)
@@ -712,7 +760,7 @@ public partial class MainWindow : Window
                 fileName = Path.GetFileName(rawOutputPath);
 
                 IconPathTextBox.Text = fileName;
-                
+
                 string cachedPath = _profileData.CacheImage(rawOutputPath, fileName);
 
                 _profileData.UpdateConfig(_currentSelectedPosition, c =>
@@ -734,5 +782,15 @@ public partial class MainWindow : Window
                 AppLog($"Помилка застосування іконки: {ex.Message}", true);
             }
         }
+    }
+
+    private void OnMediaButtonClicked(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_currentSelectedPosition)) return;
+        if (sender is not Button btn || btn.Tag is not string mediaToken) return;
+
+        ActionsTextBox.Text = mediaToken;
+        _profileData.UpdateConfig(_currentSelectedPosition, c => c.Actions = mediaToken);
+        TriggerAutoSync();
     }
 }
