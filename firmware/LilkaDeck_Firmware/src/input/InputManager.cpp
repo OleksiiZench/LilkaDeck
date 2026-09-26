@@ -152,13 +152,19 @@ void InputManager::update() {
 }
 
 uint8_t InputManager::stringToKeycode(const String& keyStr) {
-    // Modifiers
+    // Modifiers (left)
     if (keyStr == "CTRL")  return KEY_LEFT_CTRL;
     if (keyStr == "SHIFT") return KEY_LEFT_SHIFT;
     if (keyStr == "ALT")   return KEY_LEFT_ALT;
     if (keyStr == "GUI")   return KEY_LEFT_GUI;
 
-    // Function keys
+    // Modifiers (right)
+    if (keyStr == "RCTRL")  return KEY_RIGHT_CTRL;
+    if (keyStr == "RSHIFT") return KEY_RIGHT_SHIFT;
+    if (keyStr == "RALT")   return KEY_RIGHT_ALT;
+    if (keyStr == "RGUI")   return KEY_RIGHT_GUI;
+
+    // Function keys F1-F24
     if (keyStr == "F1")  return KEY_F1;
     if (keyStr == "F2")  return KEY_F2;
     if (keyStr == "F3")  return KEY_F3;
@@ -171,6 +177,18 @@ uint8_t InputManager::stringToKeycode(const String& keyStr) {
     if (keyStr == "F10") return KEY_F10;
     if (keyStr == "F11") return KEY_F11;
     if (keyStr == "F12") return KEY_F12;
+    if (keyStr == "F13") return KEY_F13;
+    if (keyStr == "F14") return KEY_F14;
+    if (keyStr == "F15") return KEY_F15;
+    if (keyStr == "F16") return KEY_F16;
+    if (keyStr == "F17") return KEY_F17;
+    if (keyStr == "F18") return KEY_F18;
+    if (keyStr == "F19") return KEY_F19;
+    if (keyStr == "F20") return KEY_F20;
+    if (keyStr == "F21") return KEY_F21;
+    if (keyStr == "F22") return KEY_F22;
+    if (keyStr == "F23") return KEY_F23;
+    if (keyStr == "F24") return KEY_F24;
 
     // Navigation / editing
     if (keyStr == "UP")        return KEY_UP_ARROW;
@@ -191,6 +209,14 @@ uint8_t InputManager::stringToKeycode(const String& keyStr) {
     if (keyStr == "ENTER") return KEY_RETURN;
     if (keyStr == "ESC")   return KEY_ESC;
 
+    // Lock / system keys
+    if (keyStr == "CAPSLOCK")    return KEY_CAPS_LOCK;
+    if (keyStr == "NUMLOCK")     return KEY_NUM_LOCK;
+    if (keyStr == "SCROLLLOCK")  return KEY_SCROLL_LOCK;
+    if (keyStr == "PRINTSCREEN") return KEY_PRINT_SCREEN;
+    if (keyStr == "PAUSE")       return KEY_PAUSE;
+    if (keyStr == "MENU")        return KEY_MENU;
+
     // Punctuation
     if (keyStr == "MINUS")     return '-';
     if (keyStr == "EQUALS")    return '=';
@@ -204,7 +230,25 @@ uint8_t InputManager::stringToKeycode(const String& keyStr) {
     if (keyStr == "RBRACKET")  return ']';
     if (keyStr == "GRAVE")     return '`';
 
-    // Digits
+    // Numpad
+    if (keyStr == "NUM0") return KEY_KP_0;
+    if (keyStr == "NUM1") return KEY_KP_1;
+    if (keyStr == "NUM2") return KEY_KP_2;
+    if (keyStr == "NUM3") return KEY_KP_3;
+    if (keyStr == "NUM4") return KEY_KP_4;
+    if (keyStr == "NUM5") return KEY_KP_5;
+    if (keyStr == "NUM6") return KEY_KP_6;
+    if (keyStr == "NUM7") return KEY_KP_7;
+    if (keyStr == "NUM8") return KEY_KP_8;
+    if (keyStr == "NUM9") return KEY_KP_9;
+    if (keyStr == "NUMPLUS")  return KEY_KP_PLUS;
+    if (keyStr == "NUMMINUS") return KEY_KP_MINUS;
+    if (keyStr == "NUMMULT")  return KEY_KP_ASTERISK;
+    if (keyStr == "NUMDIV")   return KEY_KP_SLASH;
+    if (keyStr == "NUMDOT")   return KEY_KP_DOT;
+    if (keyStr == "NUMENTER") return KEY_KP_ENTER;
+
+    // Digits (top row)
     if (keyStr.length() == 1 && keyStr.charAt(0) >= '0' && keyStr.charAt(0) <= '9') {
         return keyStr.charAt(0);
     }
