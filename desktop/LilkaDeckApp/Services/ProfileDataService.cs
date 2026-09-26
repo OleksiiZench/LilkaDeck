@@ -72,7 +72,7 @@ public class ProfileDataService
             if (!string.IsNullOrWhiteSpace(kvp.Value.IconPath) || !string.IsNullOrWhiteSpace(kvp.Value.Actions))
             {
                 var actionList = kvp.Value.ActionType == "shortcut"
-                    ? kvp.Value.Actions.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList()
+                    ? kvp.Value.Actions.Split(new[] { ',', '+' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList()
                     : new List<string> { kvp.Value.Actions.Trim() };
 
                 output.Buttons[kvp.Key] = new OutputButton
