@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="LilkaDeckApp.MainWindow"
         Title="LilkaDeck Configurator" 
-        Width="1250" Height="670" MinWidth="1150"
+        Width="1250" Height="830" MinWidth="1150"
         RequestedThemeVariant="Dark"
         WindowStartupLocation="CenterScreen"
         Icon="avares://LilkaDeckApp/assets/icons_source/lilka-icon.ico">
