@@ -1,7 +1,7 @@
 #include "input/InputManager.h"
 #include "core/ProfileManager.h"
 
-InputManager::InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManager, DisplayManager& displayManager, ProfileManager& profileManager) 
+InputManager::InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManager, IDisplay& displayManager, ProfileManager& profileManager) 
     : _keyboard(keyboard), _configManager(configManager), _displayManager(displayManager), _profileManager(profileManager) {
     
     // Map GPIO pins to logical identifiers based on hardware schematics.

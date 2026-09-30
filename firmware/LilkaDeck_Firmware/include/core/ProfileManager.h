@@ -2,11 +2,11 @@
 #include <Arduino.h>
 #include "config/ConfigManager.h"
 #include "storage/ProfileRepository.h"
-#include "display/DisplayManager.h"
+#include "display/IDisplay.h"
 
 class ProfileManager {
 public:
-    ProfileManager(ConfigManager& config, ProfileRepository& repository, DisplayManager& display);
+    ProfileManager(ConfigManager& config, ProfileRepository& repository, IDisplay& display);
     void begin();
     void loadProfile(uint8_t index, bool fullClear = true);
     void nextProfile();
@@ -19,7 +19,7 @@ public:
 private:
     ConfigManager& _config;
     ProfileRepository& _repository;
-    DisplayManager& _display;
+    IDisplay& _display;
     uint8_t _currentProfile;
     uint8_t _profileCount;
     static const size_t ICON_BUFFER_SIZE = 64 * 64 * 2;

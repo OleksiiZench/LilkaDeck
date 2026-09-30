@@ -5,7 +5,7 @@ namespace {
 constexpr const char* TAG = "PROFILE";
 }
 
-ProfileManager::ProfileManager(ConfigManager& config, ProfileRepository& repository, DisplayManager& display)
+ProfileManager::ProfileManager(ConfigManager& config, ProfileRepository& repository, IDisplay& display)
     : _config(config), _repository(repository), _display(display), _currentProfile(0), _profileCount(1) {}
 
 void ProfileManager::begin() {

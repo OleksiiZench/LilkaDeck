@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <USBHIDKeyboard.h>
 #include <USBHIDConsumerControl.h>
-#include "display/DisplayManager.h"
+#include "display/IDisplay.h"
 #include "config/ConfigManager.h"
 
 class ProfileManager;
@@ -54,7 +54,7 @@ struct ButtonDef {
 
 class InputManager {
 public:
-    InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManager, DisplayManager& displayManager, ProfileManager& profileManager);
+    InputManager(USBHIDKeyboard& keyboard, ConfigManager& configManager, IDisplay& displayManager, ProfileManager& profileManager);
 
     void begin();
     void update();
@@ -63,7 +63,7 @@ private:
     USBHIDKeyboard& _keyboard;
     USBHIDConsumerControl _mediaKeyboard;
     ConfigManager& _configManager;
-    DisplayManager& _displayManager;
+    IDisplay& _displayManager;
     ProfileManager& _profileManager;
 
     ButtonDef _buttons[static_cast<int>(ButtonID::Count)];
