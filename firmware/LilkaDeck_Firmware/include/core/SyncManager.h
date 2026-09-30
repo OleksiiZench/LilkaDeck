@@ -1,20 +1,21 @@
 #pragma once
 
 #include <Arduino.h>
-#include "storage/StorageManager.h"
+#include <memory>
+#include "storage/ProfileRepository.h"
 #include "core/ProfileManager.h"
 
 class SyncManager {
 public:
-    SyncManager(StorageManager& storageManager, ProfileManager& profileManager);
-    
+    SyncManager(ProfileRepository& repository, ProfileManager& profileManager);
     void begin();
     void update();
     bool isBusy() const;
 
 private:
-    StorageManager& _storageManager;
+    ProfileRepository& _repository;
     ProfileManager& _profileManager;
+    std::unique_ptr<IWritableFile> _activeFile;
 
     bool _isSyncing;
     unsigned long _lastSyncTime;
@@ -29,5 +30,6 @@ private:
     void checkTimeout();
     void handleBinaryMode();
     void handleTextMode();
+    void streamFileToHost(uint8_t profileId, const String& fileName);
     void resetState();
 };

@@ -5,7 +5,8 @@
 #include "config/ConfigManager.h"
 #include "input/InputManager.h"
 #include "display/DisplayManager.h"
-#include "storage/StorageManager.h"
+#include "storage/SdFileSystem.h"
+#include "storage/ProfileRepository.h"
 #include "core/ProfileManager.h"
 #include "core/SyncManager.h"
 #include "util/Logger.h"
@@ -17,11 +18,12 @@ constexpr const char* TAG = "SYS";
 USBHIDKeyboard Keyboard;
 ConfigManager configManager;
 DisplayManager displayManager;
-StorageManager storageManager;
-ProfileManager profileManager(configManager, storageManager, displayManager);
+SdFileSystem sdFileSystem;
+ProfileRepository profileRepository(sdFileSystem);
+ProfileManager profileManager(configManager, profileRepository, displayManager);
 InputManager inputManager(Keyboard, configManager, displayManager, profileManager);
 
-SyncManager syncManager(storageManager, profileManager);
+SyncManager syncManager(profileRepository, profileManager);
 
 void setup() {
     pinMode(BoardConfig::PIN_DISPLAY_BLK, OUTPUT);
@@ -43,10 +45,10 @@ void setup() {
     displayManager.showBootScreen();
     delay(1000);
 
-    Log::info(TAG, "Starting StorageManager...");
+    Log::info(TAG, "Starting storage...");
     SPIClass& sharedSpiBus = displayManager.getSharedSpiBus();
 
-    if (storageManager.begin(sharedSpiBus, BoardConfig::PIN_SD_CS)) {
+    if (sdFileSystem.begin(sharedSpiBus, BoardConfig::PIN_SD_CS)) {
         Log::info(TAG, "Booting ProfileManager...");
         profileManager.begin();
     } else {

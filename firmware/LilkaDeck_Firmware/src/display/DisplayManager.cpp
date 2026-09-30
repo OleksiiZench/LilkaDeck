@@ -6,8 +6,8 @@ DisplayManager::DisplayManager() : _tft() {
 }
 
 void DisplayManager::begin() {
-    pinMode(BoardConfig::PIN_POWER_ENABLE, OUTPUT);
-    digitalWrite(BoardConfig::PIN_POWER_ENABLE, HIGH);
+    pinMode(BoardConfig::PIN_DISPLAY_BLK, OUTPUT);
+    digitalWrite(BoardConfig::PIN_DISPLAY_BLK, HIGH);
     
     // Ensure the backlight is disabled before any memory operations
     const uint8_t PIN_BLK = 46;

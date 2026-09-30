@@ -1,16 +1,28 @@
 #include "core/SyncManager.h"
-#include "config/BoardConfig.h"
 
-SyncManager::SyncManager(StorageManager& storageManager, ProfileManager& profileManager)
-    : _storageManager(storageManager), _profileManager(profileManager),
-      _isSyncing(false), _lastSyncTime(0), _syncProfileId(0), 
+namespace {
+
+String joinWithCommas(const std::vector<uint8_t>& ids) {
+    String joined;
+    for (size_t i = 0; i < ids.size(); i++) {
+        if (i > 0) joined += ',';
+        joined += String(ids[i]);
+    }
+    return joined;
+}
+
+}
+
+SyncManager::SyncManager(ProfileRepository& repository, ProfileManager& profileManager)
+    : _repository(repository), _profileManager(profileManager),
+      _isSyncing(false), _lastSyncTime(0), _syncProfileId(0),
       _expectedBytes(0), _receivedBytes(0), _chunkIndex(0), _currentChunkTarget(0) {
 }
 
 void SyncManager::begin() {
     Serial.begin(115200);
     // Short timeout for fast binary reading without blocking the main loop
-    Serial.setTimeout(50); 
+    Serial.setTimeout(50);
 }
 
 bool SyncManager::isBusy() const {
@@ -42,7 +54,7 @@ void SyncManager::checkTimeout() {
 void SyncManager::resetState() {
     _isSyncing = false;
     _expectedBytes = 0;
-    _storageManager.closeFile();
+    _activeFile.reset();
 }
 
 void SyncManager::handleBinaryMode() {
@@ -60,9 +72,11 @@ void SyncManager::handleBinaryMode() {
 
     // Process the chunk once it is fully received
     if (_chunkIndex == _currentChunkTarget) {
-        _storageManager.writeChunk(_chunkBuffer, _chunkIndex);
+        if (_activeFile) {
+            _activeFile->write(_chunkBuffer, _chunkIndex);
+        }
         _receivedBytes += _chunkIndex;
-        
+
         _chunkIndex = 0;
         _currentChunkTarget = 0;
 
@@ -71,10 +85,27 @@ void SyncManager::handleBinaryMode() {
             Serial.println("ACK_CHUNK");
         } else {
             // Transfer complete
-            _storageManager.closeFile();
-            _expectedBytes = 0; 
+            _activeFile.reset();
+            _expectedBytes = 0;
             Serial.println("ACK_DONE");
         }
+    }
+}
+
+void SyncManager::streamFileToHost(uint8_t profileId, const String& fileName) {
+    std::unique_ptr<IReadableFile> file = _repository.openFileForRead(profileId, fileName);
+    if (!file) {
+        Serial.println("ERR:FILE_NOT_FOUND");
+        return;
+    }
+
+    // Notify the host about the incoming file size
+    Serial.printf("FILE_SEND_START:%u\n", static_cast<unsigned>(file->size()));
+
+    uint8_t buffer[256];
+    size_t bytesRead;
+    while ((bytesRead = file->read(buffer, sizeof(buffer))) > 0) {
+        Serial.write(buffer, bytesRead);
     }
 }
 
@@ -93,10 +124,7 @@ void SyncManager::handleTextMode() {
 
     // Host requested the list of available profiles
     if (cmd == "GET_PROFILES") {
-        String profiles = _storageManager.getProfilesList();
-        Serial.println("PROFILES:" + profiles);
-        
-        digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
+        Serial.println("PROFILES:" + joinWithCommas(_repository.listProfileIds()));
         return;
     }
 
@@ -104,8 +132,6 @@ void SyncManager::handleTextMode() {
     if (cmd == "PROFILE_CREATE") {
         uint8_t newId = _profileManager.createNewProfile();
         Serial.printf("ACK_PROFILE_CREATE:%d\n", newId);
-        
-        digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
         return;
     }
 
@@ -117,8 +143,6 @@ void SyncManager::handleTextMode() {
         } else {
             Serial.println("ERR:CANNOT_DELETE");
         }
-        
-        digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
         return;
     }
 
@@ -133,36 +157,12 @@ void SyncManager::handleTextMode() {
     if (cmd.startsWith("FILE_GET:")) {
         int firstColon = cmd.indexOf(':');
         int secondColon = cmd.indexOf(':', firstColon + 1);
-        
+
         if (firstColon != -1 && secondColon != -1) {
-            String profileId = cmd.substring(firstColon + 1, secondColon);
+            uint8_t profileId = cmd.substring(firstColon + 1, secondColon).toInt();
             String fileName = cmd.substring(secondColon + 1);
-            String filePath = "/profile_" + profileId + "/" + fileName;
-            
-            File file = _storageManager.openFileForRead(filePath.c_str());
-            if (file && !file.isDirectory()) {
-                size_t fileSize = file.size();
-                
-                // Notify the host about the incoming file size
-                Serial.printf("FILE_SEND_START:%d\n", fileSize);
-                
-                // Stream the file raw bytes to the Serial port
-                uint8_t buf[256];
-                while (file.available()) {
-                    size_t bytesRead = file.read(buf, sizeof(buf));
-                    if (bytesRead > 0) {
-                        Serial.write(buf, bytesRead);
-                    }
-                }
-                file.close();
-            } else {
-                Serial.println("ERR:FILE_NOT_FOUND");
-            }
+            streamFileToHost(profileId, fileName);
         }
-        
-        // Free the SPI bus once the file transfer is complete.
-        // Failing to do this causes the TFT driver to deadlock on the first draw command.
-        digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
         return;
     }
 
@@ -171,33 +171,32 @@ void SyncManager::handleTextMode() {
         _syncProfileId = cmd.substring(11).toInt();
         _isSyncing = true;
         _expectedBytes = 0;
-        
-        String dir = "/profile_" + String(_syncProfileId);
-        _storageManager.createDir(dir.c_str());
+
+        _repository.ensureProfileDirectory(_syncProfileId);
         Serial.println("ACK_SYNC");
     }
     // Host is preparing to send a file to the ESP32
     else if (_isSyncing && cmd.startsWith("FILE_START:")) {
         int firstColon = cmd.indexOf(':');
         int secondColon = cmd.indexOf(':', firstColon + 1);
-        
+
         String fileName = cmd.substring(firstColon + 1, secondColon);
         _expectedBytes = cmd.substring(secondColon + 1).toInt();
         _receivedBytes = 0;
-        
-        _chunkIndex = 0; 
+
+        _chunkIndex = 0;
         _currentChunkTarget = 0;
-        
-        String filePath = "/profile_" + String(_syncProfileId) + "/" + fileName;
-        _storageManager.openFileForWrite(filePath.c_str());
-        
+
+        _activeFile.reset();
+        _activeFile = _repository.openFileForWrite(_syncProfileId, fileName);
+
         Serial.println("ACK_FILE");
     }
     // Host successfully finished sending all data
     else if (_isSyncing && cmd == "SYNC_END") {
         resetState();
         Serial.println("ACK_END");
-        
+
         // Reload the UI to reflect the newly synchronized data
         _profileManager.loadProfile(_syncProfileId, false);
     }
