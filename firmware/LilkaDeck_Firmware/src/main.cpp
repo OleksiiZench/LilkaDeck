@@ -24,8 +24,8 @@ InputManager inputManager(Keyboard, configManager, displayManager, profileManage
 SyncManager syncManager(storageManager, profileManager);
 
 void setup() {
-    pinMode(BoardConfig::PIN_POWER_ENABLE, OUTPUT);
-    digitalWrite(BoardConfig::PIN_POWER_ENABLE, LOW);
+    pinMode(BoardConfig::PIN_DISPLAY_BLK, OUTPUT);
+    digitalWrite(BoardConfig::PIN_DISPLAY_BLK, LOW);
 
     syncManager.begin();
     Log::info(TAG, "--- LILKA BOOT SEQUENCE START ---");
