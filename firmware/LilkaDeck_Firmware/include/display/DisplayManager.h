@@ -1,12 +1,9 @@
 #pragma once
+
 #include <TFT_eSPI.h>
 #include <SPI.h>
 
-// Defines logical grid positions for rendering UI elements
-enum class IconPosition {
-    LeftUp, LeftLeft, LeftRight, LeftDown,
-    RightUp, RightLeft, RightRight, RightDown
-};
+#include "domain/IconPosition.h"
 
 class DisplayManager {
 public:
