@@ -1,23 +1,28 @@
 #include "storage/StorageManager.h"
 #include <Arduino.h>
 
+#include "util/Logger.h"
+
+namespace {
+constexpr const char* TAG = "STORAGE";
+}
+
 StorageManager::StorageManager() : _isMounted(false) {}
 
 bool StorageManager::begin(SPIClass& spiBus, uint8_t csPin) {
     if (!SD.begin(csPin, spiBus)) {
-        Serial.println("[ERROR] StorageManager: SD Mount Failed!");
+        Log::error(TAG, "SD mount failed");
         return false;
     }
-    
+
     uint8_t cardType = SD.cardType();
     if (cardType == CARD_NONE) {
-        Serial.println("[ERROR] StorageManager: No SD card attached.");
+        Log::error(TAG, "No SD card attached");
         return false;
     }
 
     _isMounted = true;
-    Serial.printf("[SYS] StorageManager: SD Card Initialized. Type: %d\n", cardType);
-    
+    Log::info(TAG, "SD card initialized, type: %d", cardType);
     return true;
 }
 
