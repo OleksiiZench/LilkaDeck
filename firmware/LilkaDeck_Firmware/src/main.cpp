@@ -10,7 +10,9 @@
 #include "core/ProfileNavigator.h"
 #include "core/ProfilePresenter.h"
 #include "core/ProfileManager.h"
-#include "core/SyncManager.h"
+#include "sync/ArduinoSerialLink.h"
+#include "sync/FileReceiver.h"
+#include "sync/SyncManager.h"
 #include "util/Logger.h"
 
 namespace {
@@ -27,13 +29,15 @@ ProfilePresenter profilePresenter(configManager, profileRepository, display);
 ProfileManager profileManager(configManager, profileRepository, profileNavigator, profilePresenter);
 InputManager inputManager(Keyboard, configManager, display, profileManager);
 
-SyncManager syncManager(profileRepository, profileManager);
+ArduinoSerialLink serialLink;
+FileReceiver fileReceiver(serialLink);
+SyncManager syncManager(serialLink, profileRepository, profileManager, fileReceiver);
 
 void setup() {
     pinMode(BoardConfig::PIN_DISPLAY_BLK, OUTPUT);
     digitalWrite(BoardConfig::PIN_DISPLAY_BLK, LOW);
 
-    syncManager.begin();
+    serialLink.begin();
     Log::info(TAG, "--- LILKA BOOT SEQUENCE START ---");
 
     pinMode(BoardConfig::PIN_SD_CS, OUTPUT);
