@@ -5,4 +5,9 @@ enum class IconPosition {
     RightUp, RightLeft, RightRight, RightDown
 };
 
+constexpr IconPosition ALL_ICON_POSITIONS[] = {
+    IconPosition::LeftUp, IconPosition::LeftLeft, IconPosition::LeftRight, IconPosition::LeftDown,
+    IconPosition::RightUp, IconPosition::RightLeft, IconPosition::RightRight, IconPosition::RightDown
+};
+
 bool tryParseIconPosition(const char* name, IconPosition& outPosition);
