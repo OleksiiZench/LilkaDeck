@@ -197,7 +197,6 @@ void SyncManager::handleTextMode() {
         resetState();
         Serial.println("ACK_END");
 
-        // Reload the UI to reflect the newly synchronized data
-        _profileManager.loadProfile(_syncProfileId, false);
+        _profileManager.reloadProfile(_syncProfileId);
     }
 }

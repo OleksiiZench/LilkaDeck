@@ -7,6 +7,8 @@
 #include "display/TftDisplay.h"
 #include "storage/SdFileSystem.h"
 #include "storage/ProfileRepository.h"
+#include "core/ProfileNavigator.h"
+#include "core/ProfilePresenter.h"
 #include "core/ProfileManager.h"
 #include "core/SyncManager.h"
 #include "util/Logger.h"
@@ -20,7 +22,9 @@ ConfigManager configManager;
 TftDisplay display;
 SdFileSystem sdFileSystem;
 ProfileRepository profileRepository(sdFileSystem);
-ProfileManager profileManager(configManager, profileRepository, display);
+ProfileNavigator profileNavigator;
+ProfilePresenter profilePresenter(configManager, profileRepository, display);
+ProfileManager profileManager(configManager, profileRepository, profileNavigator, profilePresenter);
 InputManager inputManager(Keyboard, configManager, display, profileManager);
 
 SyncManager syncManager(profileRepository, profileManager);
