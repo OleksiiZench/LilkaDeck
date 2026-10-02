@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Arduino.h>
-#include <ArduinoJson.h>
 #include <map>
 #include <vector>
 #include "domain/IconPosition.h"
@@ -27,7 +26,4 @@ private:
     std::map<IconPosition, ButtonConfig> _buttons;
     String _profileName;
     uint16_t _activeColor;
-
-    void parseButtons(JsonObjectConst buttons);
-    static ButtonConfig parseButton(JsonVariantConst data);
 };
