@@ -3,7 +3,6 @@
 #include "USBHIDKeyboard.h"
 #include "config/BoardConfig.h"
 #include "config/ConfigManager.h"
-#include "input/InputManager.h"
 #include "display/TftDisplay.h"
 #include "storage/SdFileSystem.h"
 #include "storage/ProfileRepository.h"
@@ -13,6 +12,10 @@
 #include "sync/ArduinoSerialLink.h"
 #include "sync/FileReceiver.h"
 #include "sync/SyncManager.h"
+#include "input/ActionExecutor.h"
+#include "input/ButtonReader.h"
+#include "input/InputController.h"
+#include "input/UsbHidOutput.h"
 #include "util/Logger.h"
 
 namespace {
@@ -27,11 +30,15 @@ ProfileRepository profileRepository(sdFileSystem);
 ProfileNavigator profileNavigator;
 ProfilePresenter profilePresenter(configManager, profileRepository, display);
 ProfileManager profileManager(configManager, profileRepository, profileNavigator, profilePresenter);
-InputManager inputManager(Keyboard, configManager, display, profileManager);
 
 ArduinoSerialLink serialLink;
 FileReceiver fileReceiver(serialLink);
 SyncManager syncManager(serialLink, profileRepository, profileManager, fileReceiver);
+
+UsbHidOutput hidOutput(Keyboard);
+ActionExecutor actionExecutor(hidOutput, serialLink);
+ButtonReader buttonReader;
+InputController inputController(buttonReader, configManager, display, profileManager, actionExecutor);
 
 void setup() {
     pinMode(BoardConfig::PIN_DISPLAY_BLK, OUTPUT);
@@ -63,8 +70,9 @@ void setup() {
         Log::error(TAG, "SD card mount failed");
     }
 
-    Log::info(TAG, "Starting InputManager...");
-    inputManager.begin();
+    Log::info(TAG, "Starting input...");
+    hidOutput.begin();
+    inputController.begin();
 
     Log::info(TAG, "Lilka Stream Deck: Ready.");
 }
@@ -72,7 +80,7 @@ void setup() {
 void loop() {
     syncManager.update();
     if (!syncManager.isBusy()) {
-        inputManager.update();
+        inputController.update();
         delay(1);
     }
 }
