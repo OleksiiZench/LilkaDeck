@@ -21,6 +21,13 @@ void Log::info(const char* tag, const char* format, ...) {
     va_end(args);
 }
 
+void Log::warn(const char* tag, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    print(tag, "WARN: ", format, args);
+    va_end(args);
+}
+
 void Log::error(const char* tag, const char* format, ...) {
     va_list args;
     va_start(args, format);
