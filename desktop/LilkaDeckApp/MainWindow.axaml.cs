@@ -85,7 +85,7 @@ public partial class MainWindow : Window
 
     private async void HandleConnected(string portName)
     {
-        Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.Post(() =>
         {
             ConnectionStatusText.Text = $"Статус: Підключено ({portName})";
             ConnectionStatusText.Foreground = SolidColorBrush.Parse("#4CAF50");
@@ -122,7 +122,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            Dispatcher.UIThread.InvokeAsync(() =>
+            Dispatcher.UIThread.Post(() =>
             {
                 ActiveProfileTitle.Text = "Профілі відсутні";
                 DeleteProfileButton.IsEnabled = false;
@@ -154,7 +154,7 @@ public partial class MainWindow : Window
         AppLog($"Завантаження Профілю {profileId}...");
         _isLoadingProfile = true;
 
-        Dispatcher.UIThread.InvokeAsync(() =>
+        Dispatcher.UIThread.Post(() =>
         {
             ActiveProfileTitle.Text = $"Профіль {profileId}";
             DeleteProfileButton.IsEnabled = _availableProfiles.Length > 1;
@@ -170,7 +170,7 @@ public partial class MainWindow : Window
 
                 if (config != null)
                 {
-                    Dispatcher.UIThread.InvokeAsync(() =>
+                    Dispatcher.UIThread.Post(() =>
                     {
                         ProfileNameTextBox.TextChanged -= OnProfileNameChanged;
                         ProfileNameTextBox.Text = config.ProfileName;
@@ -216,7 +216,7 @@ public partial class MainWindow : Window
         {
             _isLoadingProfile = false;
 
-            Dispatcher.UIThread.InvokeAsync(() =>
+            Dispatcher.UIThread.Post(() =>
             {
                 if (!string.IsNullOrEmpty(_currentSelectedPosition))
                 {
@@ -336,7 +336,7 @@ public partial class MainWindow : Window
                 string profileIdStr = _availableProfiles[_currentProfileIndex];
                 int profileId = int.TryParse(profileIdStr, out int id) ? id : 0;
 
-                Dispatcher.UIThread.InvokeAsync(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     ActiveProfileTitle.Text = $"Профіль {profileId}: {profileName}";
                 });
