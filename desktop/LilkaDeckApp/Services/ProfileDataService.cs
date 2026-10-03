@@ -1,38 +1,32 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text.Json;
+using LilkaDeckApp.Domain;
 using LilkaDeckApp.Models;
 
 namespace LilkaDeckApp.Services;
 
 /// <summary>
-/// Service responsible for managing the state of the deck configuration 
+/// Service responsible for managing the state of the deck configuration
 /// and building the final payload for synchronization.
 /// </summary>
 public class ProfileDataService
 {
-    private readonly Dictionary<string, ButtonConfig> _deckConfigs = new();
+    private const string DefaultProfileName = "Profile";
+
+    private readonly Dictionary<DeckPosition, ButtonConfig> _deckConfigs = new();
 
     public string CacheDirectory { get; }
 
     public ProfileDataService()
     {
         string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        
-        CacheDirectory = Path.Combine(appData, "LilkaDeck", "Cache");
-        
-        if (!Directory.Exists(CacheDirectory))
-        {
-            Directory.CreateDirectory(CacheDirectory);
-        }
 
-        string[] positions = { "LeftUp", "LeftLeft", "LeftRight", "LeftDown", "RightUp", "RightLeft", "RightRight", "RightDown" };
-        foreach (var pos in positions)
-        {
-            _deckConfigs[pos] = new ButtonConfig();
-        }
+        CacheDirectory = Path.Combine(appData, "LilkaDeck", "Cache");
+        Directory.CreateDirectory(CacheDirectory);
+
+        ClearState();
     }
 
     /// <summary>
@@ -40,7 +34,7 @@ public class ProfileDataService
     /// </summary>
     public ButtonConfig GetConfig(string position)
     {
-        return _deckConfigs.TryGetValue(position, out var config) ? config : new ButtonConfig();
+        return DeckPositions.TryParse(position, out var parsed) ? _deckConfigs[parsed] : new ButtonConfig();
     }
 
     /// <summary>
@@ -48,9 +42,9 @@ public class ProfileDataService
     /// </summary>
     public void UpdateConfig(string position, Action<ButtonConfig> updateAction)
     {
-        if (_deckConfigs.TryGetValue(position, out var config))
+        if (DeckPositions.TryParse(position, out var parsed))
         {
-            updateAction(config);
+            updateAction(_deckConfigs[parsed]);
         }
     }
 
@@ -59,40 +53,28 @@ public class ProfileDataService
     /// </summary>
     public (byte[] jsonBytes, Dictionary<string, string> filesToSend) BuildSyncPayload(string profileName, string activeColorHex)
     {
-        var output = new OutputConfig
+        var output = new ProfileConfigDto
         {
-            ProfileName = string.IsNullOrWhiteSpace(profileName) ? "Profile" : profileName,
+            ProfileName = string.IsNullOrWhiteSpace(profileName) ? DefaultProfileName : profileName,
             ActiveColor = activeColorHex
         };
 
         var filesToSend = new Dictionary<string, string>();
 
-        foreach (var kvp in _deckConfigs)
+        foreach (var (position, config) in _deckConfigs)
         {
-            if (!string.IsNullOrWhiteSpace(kvp.Value.IconPath) || !string.IsNullOrWhiteSpace(kvp.Value.Actions))
+            if (IsEmpty(config)) continue;
+
+            output.Buttons[position.ToWireName()] = ToDto(config);
+
+            if (ShouldUploadIcon(config))
             {
-                var actionList = kvp.Value.ActionType == "shortcut"
-                    ? kvp.Value.Actions.Split(new[] { ',', '+' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList()
-                    : new List<string> { kvp.Value.Actions.Trim() };
-
-                output.Buttons[kvp.Key] = new OutputButton
-                {
-                    Icon = kvp.Value.IconPath,
-                    Type = kvp.Value.ActionType,
-                    Action = actionList
-                };
-
-                if (kvp.Value.NeedsUpload && !string.IsNullOrWhiteSpace(kvp.Value.IconFullPath) && File.Exists(kvp.Value.IconFullPath))
-                {
-                    filesToSend[kvp.Value.IconPath] = kvp.Value.IconFullPath;
-                }
+                filesToSend[config.IconPath] = config.IconFullPath;
             }
         }
 
         string jsonString = JsonSerializer.Serialize(output, new JsonSerializerOptions { WriteIndented = true });
-        byte[] jsonBytes = System.Text.Encoding.UTF8.GetBytes(jsonString);
-
-        return (jsonBytes, filesToSend);
+        return (System.Text.Encoding.UTF8.GetBytes(jsonString), filesToSend);
     }
 
     /// <summary>
@@ -100,40 +82,28 @@ public class ProfileDataService
     /// </summary>
     public void ClearState()
     {
-        foreach (var key in _deckConfigs.Keys.ToList())
+        foreach (var position in DeckPositions.All)
         {
-            _deckConfigs[key] = new ButtonConfig();
+            _deckConfigs[position] = new ButtonConfig();
         }
     }
 
     /// <summary>
     /// Parses the JSON received from Lilka and updates the status
     /// </summary>
-    public OutputConfig? LoadFromJson(string jsonContent)
+    public ProfileConfigDto? LoadFromJson(string jsonContent)
     {
         try
         {
             ClearState();
-            var config = JsonSerializer.Deserialize<OutputConfig>(jsonContent);
+            var config = JsonSerializer.Deserialize<ProfileConfigDto>(jsonContent);
             if (config == null) return null;
 
-            foreach (var kvp in config.Buttons)
+            foreach (var (name, button) in config.Buttons)
             {
-                if (_deckConfigs.ContainsKey(kvp.Key))
+                if (DeckPositions.TryParse(name, out var position))
                 {
-                    _deckConfigs[kvp.Key].IconPath = kvp.Value.Icon;
-                    _deckConfigs[kvp.Key].ActionType = kvp.Value.Type;
-                    _deckConfigs[kvp.Key].Actions = kvp.Value.Type == "shortcut"
-                        ? string.Join(", ", kvp.Value.Action)
-                        : kvp.Value.Action.FirstOrDefault() ?? "";
-
-                    // If the image is in the cache, we load it right away
-                    string cachedImage = Path.Combine(CacheDirectory, kvp.Value.Icon);
-                    if (File.Exists(cachedImage))
-                    {
-                        _deckConfigs[kvp.Key].IconFullPath = cachedImage;
-                        _deckConfigs[kvp.Key].NeedsUpload = false;
-                    }
+                    ApplyDto(_deckConfigs[position], button);
                 }
             }
             return config;
@@ -156,5 +126,38 @@ public class ProfileDataService
             File.Copy(originalPath, cachedPath, true);
         }
         return cachedPath;
+    }
+
+    private static bool IsEmpty(ButtonConfig config) =>
+        string.IsNullOrWhiteSpace(config.IconPath) && string.IsNullOrWhiteSpace(config.Actions);
+
+    private static bool ShouldUploadIcon(ButtonConfig config) =>
+        config.NeedsUpload && !string.IsNullOrWhiteSpace(config.IconFullPath) && File.Exists(config.IconFullPath);
+
+    private static ButtonDto ToDto(ButtonConfig config)
+    {
+        var type = ActionTypes.Parse(config.ActionType);
+        return new ButtonDto
+        {
+            Icon = config.IconPath,
+            Type = type.ToWireName(),
+            Action = ActionTokens.FromText(type, config.Actions)
+        };
+    }
+
+    private void ApplyDto(ButtonConfig target, ButtonDto button)
+    {
+        var type = ActionTypes.Parse(button.Type);
+        target.IconPath = button.Icon;
+        target.ActionType = type.ToWireName();
+        target.Actions = ActionTokens.ToText(type, button.Action);
+
+        // An icon that is already in the cache does not need to be fetched or uploaded again.
+        string cachedImage = Path.Combine(CacheDirectory, button.Icon);
+        if (File.Exists(cachedImage))
+        {
+            target.IconFullPath = cachedImage;
+            target.NeedsUpload = false;
+        }
     }
 }
