@@ -4,13 +4,13 @@ using System.Collections.Generic;
 namespace LilkaDeckApp.Services;
 
 /// <summary>
-/// Maps physical Avalonia keys to the canonical string tokens understood by the ESP32 firmware.
-/// This is the single source of truth for the desktop side of the "translation" —
-/// add a new key here once, and it works everywhere without touching firmware.
+/// Maps physical Avalonia keys to the string tokens understood by the firmware.
+/// Every token here must also exist in the firmware's key tables (KeyLookup.cpp),
+/// otherwise the key is captured but does nothing on the device.
 /// </summary>
 public static class KeyCaptureMap
 {
-    public static readonly Dictionary<Key, string> Map = new()
+    public static readonly IReadOnlyDictionary<Key, string> Map = new Dictionary<Key, string>
     {
         // Letters
         { Key.A, "A" }, { Key.B, "B" }, { Key.C, "C" }, { Key.D, "D" }, { Key.E, "E" },
@@ -46,7 +46,7 @@ public static class KeyCaptureMap
         { Key.Scroll, "SCROLLLOCK" },
         { Key.PrintScreen, "PRINTSCREEN" },
         { Key.Pause, "PAUSE" },
-        { Key.Apps, "MENU" }, // Контекстне меню (клавіша поруч з правим Ctrl)
+        { Key.Apps, "MENU" }, // Context menu key, next to the right Ctrl
 
         // Punctuation
         { Key.OemMinus, "MINUS" }, { Key.OemPlus, "EQUALS" },
@@ -63,9 +63,9 @@ public static class KeyCaptureMap
         { Key.NumPad9, "NUM9" },
         { Key.Add, "NUMPLUS" }, { Key.Subtract, "NUMMINUS" },
         { Key.Multiply, "NUMMULT" }, { Key.Divide, "NUMDIV" },
-        { Key.Decimal, "NUMDOT" }, { Key.OemClear, "NUMCLEAR" },
+        { Key.Decimal, "NUMDOT" },
 
-        // Media keys (handled by USBHIDConsumerControl on the firmware side)
+        // Media keys (sent by the firmware over USB consumer control)
         { Key.MediaPlayPause, "MEDIA_PLAY_PAUSE" },
         { Key.MediaNextTrack, "MEDIA_NEXT" },
         { Key.MediaPreviousTrack, "MEDIA_PREV" },
@@ -75,28 +75,14 @@ public static class KeyCaptureMap
     };
 
     /// <summary>
-    /// Modifier keys are held, not "pressed" as the main key of a combo — captured separately
-    /// via KeyModifiers in the KeyDown handler, so they're excluded from the main lookup above.
-    /// Left/Right variants are distinguished here in case a combo needs a specific side
-    /// (e.g. right Alt / AltGr on some layouts).
+    /// Modifier keys are not the main key of a combination. They are read from KeyModifiers
+    /// in the KeyDown handler, so pressing one on its own is ignored.
     /// </summary>
-    public static readonly HashSet<Key> ModifierKeys = new()
+    public static readonly IReadOnlySet<Key> ModifierKeys = new HashSet<Key>
     {
         Key.LeftCtrl, Key.RightCtrl,
         Key.LeftShift, Key.RightShift,
         Key.LeftAlt, Key.RightAlt,
         Key.LWin, Key.RWin
-    };
-
-    /// <summary>
-    /// Explicit left/right modifier tokens, used only when the person holds a modifier
-    /// as the single "main" key being captured (rare, but completes the picture).
-    /// </summary>
-    public static readonly Dictionary<Key, string> ExplicitModifierTokens = new()
-    {
-        { Key.LeftCtrl, "CTRL" }, { Key.RightCtrl, "RCTRL" },
-        { Key.LeftShift, "SHIFT" }, { Key.RightShift, "RSHIFT" },
-        { Key.LeftAlt, "ALT" }, { Key.RightAlt, "RALT" },
-        { Key.LWin, "GUI" }, { Key.RWin, "RGUI" },
     };
 }
