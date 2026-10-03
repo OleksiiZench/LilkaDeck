@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -15,8 +14,12 @@ public static class ActionTokens
 
     public static List<string> FromText(ActionType type, string text) =>
         type == ActionType.Shortcut
-            ? text.Split(ShortcutSeparators, StringSplitOptions.RemoveEmptyEntries).Select(token => token.Trim()).ToList()
-            : new List<string> { text.Trim() };
+            ? Clean(text.Split(ShortcutSeparators))
+            : Clean(new[] { text });
+
+    /// <summary>Trims every token and drops the ones that are blank.</summary>
+    public static List<string> Clean(IEnumerable<string?> tokens) =>
+        tokens.Select(token => token?.Trim() ?? "").Where(token => token.Length > 0).ToList();
 
     public static string ToText(ActionType type, IReadOnlyList<string> tokens) =>
         type == ActionType.Shortcut

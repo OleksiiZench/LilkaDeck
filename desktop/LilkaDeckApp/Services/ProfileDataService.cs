@@ -1,163 +1,98 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
-using System.Text.Json;
 using LilkaDeckApp.Domain;
 using LilkaDeckApp.Models;
+using LilkaDeckApp.Profiles;
 
 namespace LilkaDeckApp.Services;
 
 /// <summary>
-/// Service responsible for managing the state of the deck configuration
-/// and building the final payload for synchronization.
+/// Compatibility facade that keeps the string-based API MainWindow uses.
+/// It can be deleted once MainWindow works with DeckState through view models.
 /// </summary>
 public class ProfileDataService
 {
-    private const string DefaultProfileName = "Profile";
+    private readonly DeckState _state = new();
+    private readonly IconCache _iconCache;
 
-    private readonly Dictionary<DeckPosition, ButtonConfig> _deckConfigs = new();
-
-    public string CacheDirectory { get; }
+    // The text exactly as the editor last set it. Switching the action type back and forth must not
+    // rewrite it, so a URL containing "," or "+" survives even while the type is briefly "shortcut".
+    private readonly Dictionary<DeckPosition, string> _actionText = new();
 
     public ProfileDataService()
     {
         string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-
-        CacheDirectory = Path.Combine(appData, "LilkaDeck", "Cache");
-        Directory.CreateDirectory(CacheDirectory);
-
-        ClearState();
+        _iconCache = new IconCache(Path.Combine(appData, "LilkaDeck", "Cache"));
     }
 
-    /// <summary>
-    /// Retrieves the configuration for a specific button position.
-    /// </summary>
-    public ButtonConfig GetConfig(string position)
-    {
-        return DeckPositions.TryParse(position, out var parsed) ? _deckConfigs[parsed] : new ButtonConfig();
-    }
+    public string CacheDirectory => _iconCache.DirectoryPath;
 
-    /// <summary>
-    /// Updates properties of a specific button configuration safely.
-    /// </summary>
+    public ButtonConfig GetConfig(string position) =>
+        DeckPositions.TryParse(position, out var parsed) ? ToConfig(parsed) : new ButtonConfig();
+
     public void UpdateConfig(string position, Action<ButtonConfig> updateAction)
     {
-        if (DeckPositions.TryParse(position, out var parsed))
-        {
-            updateAction(_deckConfigs[parsed]);
-        }
+        if (!DeckPositions.TryParse(position, out var parsed)) return;
+
+        var config = ToConfig(parsed);
+        updateAction(config);
+
+        _actionText[parsed] = config.Actions;
+        _state.Update(parsed, _ => FromConfig(config));
     }
 
-    /// <summary>
-    /// Compiles the current UI state into the final JSON byte array and the list of raw image files.
-    /// </summary>
     public (byte[] jsonBytes, Dictionary<string, string> filesToSend) BuildSyncPayload(string profileName, string activeColorHex)
     {
-        var output = new ProfileConfigDto
-        {
-            ProfileName = string.IsNullOrWhiteSpace(profileName) ? DefaultProfileName : profileName,
-            ActiveColor = activeColorHex
-        };
-
-        var filesToSend = new Dictionary<string, string>();
-
-        foreach (var (position, config) in _deckConfigs)
-        {
-            if (IsEmpty(config)) continue;
-
-            output.Buttons[position.ToWireName()] = ToDto(config);
-
-            if (ShouldUploadIcon(config))
-            {
-                filesToSend[config.IconPath] = config.IconFullPath;
-            }
-        }
-
-        string jsonString = JsonSerializer.Serialize(output, new JsonSerializerOptions { WriteIndented = true });
-        return (System.Text.Encoding.UTF8.GetBytes(jsonString), filesToSend);
+        var document = _state.ToDocument(profileName, activeColorHex);
+        return (ProfileSerializer.Serialize(document), _state.CollectIconUploads(File.Exists));
     }
 
-    /// <summary>
-    /// Clears the current state of the UI
-    /// </summary>
     public void ClearState()
     {
-        foreach (var position in DeckPositions.All)
-        {
-            _deckConfigs[position] = new ButtonConfig();
-        }
+        _actionText.Clear();
+        _state.Clear();
     }
 
-    /// <summary>
-    /// Parses the JSON received from Lilka and updates the status
-    /// </summary>
     public ProfileConfigDto? LoadFromJson(string jsonContent)
     {
-        try
-        {
-            ClearState();
-            var config = JsonSerializer.Deserialize<ProfileConfigDto>(jsonContent);
-            if (config == null) return null;
+        ClearState();
 
-            foreach (var (name, button) in config.Buttons)
-            {
-                if (DeckPositions.TryParse(name, out var position))
-                {
-                    ApplyDto(_deckConfigs[position], button);
-                }
-            }
-            return config;
-        }
-        catch (Exception ex)
+        if (!ProfileSerializer.TryDeserialize(jsonContent, out var document, out var error))
         {
-            Console.WriteLine($"JSON Parse Error: {ex.Message}");
+            Trace.TraceWarning($"Cannot parse the profile config: {error}");
             return null;
         }
+
+        _state.Load(document, _iconCache.Find);
+        return ProfileSerializer.ToDto(document);
     }
 
-    /// <summary>
-    /// Copies the selected image to the cache before sending it (so it won't be lost)
-    /// </summary>
-    public string CacheImage(string originalPath, string fileName)
+    public string CacheImage(string originalPath, string fileName) => _iconCache.Store(originalPath, fileName);
+
+    private ButtonConfig ToConfig(DeckPosition position)
     {
-        string cachedPath = Path.Combine(CacheDirectory, fileName);
-        if (originalPath != cachedPath)
+        var state = _state.Get(position);
+        var definition = state.Definition;
+
+        return new ButtonConfig
         {
-            File.Copy(originalPath, cachedPath, true);
-        }
-        return cachedPath;
-    }
-
-    private static bool IsEmpty(ButtonConfig config) =>
-        string.IsNullOrWhiteSpace(config.IconPath) && string.IsNullOrWhiteSpace(config.Actions);
-
-    private static bool ShouldUploadIcon(ButtonConfig config) =>
-        config.NeedsUpload && !string.IsNullOrWhiteSpace(config.IconFullPath) && File.Exists(config.IconFullPath);
-
-    private static ButtonDto ToDto(ButtonConfig config)
-    {
-        var type = ActionTypes.Parse(config.ActionType);
-        return new ButtonDto
-        {
-            Icon = config.IconPath,
-            Type = type.ToWireName(),
-            Action = ActionTokens.FromText(type, config.Actions)
+            IconPath = definition.IconFileName,
+            IconFullPath = state.IconFilePath ?? "",
+            NeedsUpload = state.IconNeedsUpload,
+            ActionType = definition.ActionType.ToWireName(),
+            Actions = _actionText.TryGetValue(position, out var text)
+                ? text
+                : ActionTokens.ToText(definition.ActionType, definition.Actions)
         };
     }
 
-    private void ApplyDto(ButtonConfig target, ButtonDto button)
+    private static DeckButtonState FromConfig(ButtonConfig config)
     {
-        var type = ActionTypes.Parse(button.Type);
-        target.IconPath = button.Icon;
-        target.ActionType = type.ToWireName();
-        target.Actions = ActionTokens.ToText(type, button.Action);
-
-        // An icon that is already in the cache does not need to be fetched or uploaded again.
-        string cachedImage = Path.Combine(CacheDirectory, button.Icon);
-        if (File.Exists(cachedImage))
-        {
-            target.IconFullPath = cachedImage;
-            target.NeedsUpload = false;
-        }
+        var type = ActionTypes.Parse(config.ActionType);
+        var definition = new ButtonDefinition(config.IconPath, type, ActionTokens.FromText(type, config.Actions));
+        string? iconFilePath = string.IsNullOrWhiteSpace(config.IconFullPath) ? null : config.IconFullPath;
+        return new DeckButtonState(definition, iconFilePath, config.NeedsUpload);
     }
 }
