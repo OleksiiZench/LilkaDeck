@@ -13,6 +13,7 @@ using System.IO;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using Avalonia.VisualTree;
 
 using LilkaDeckApp.Services;
 
@@ -621,8 +622,8 @@ public partial class MainWindow : Window
 
         if (files != null && files.Length > 0 && e.Source is Control targetControl)
         {
-            Button? targetButton = targetControl as Button ?? targetControl.Parent as Button;
-
+            Button? targetButton = targetControl.FindAncestorOfType<Button>(includeSelf: true);
+            
             if (targetButton != null && targetButton.Tag is string position)
             {
                 if (_currentSelectedPosition != position)
