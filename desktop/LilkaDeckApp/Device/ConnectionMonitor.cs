@@ -89,8 +89,9 @@ public sealed class ConnectionMonitor : IDisposable
     {
         try
         {
-            if (Session == null) await ConnectToAnyPortAsync(cancellationToken);
-            else await CheckHeartbeatAsync(Session, cancellationToken);
+            var session = Session;
+            if (session == null) await ConnectToAnyPortAsync(cancellationToken);
+            else await CheckHeartbeatAsync(session, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
