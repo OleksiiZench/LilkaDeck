@@ -1,14 +1,15 @@
+using System;
 using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using System;
+using Avalonia.Threading;
+using LilkaDeckApp.Hosting;
 
 namespace LilkaDeckApp;
 
 public partial class App : Application
 {
-    private MainWindow? _mainWindow;
+    private WindowController? _windowController;
 
     public override void Initialize()
     {
@@ -20,68 +21,28 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var mainWindow = new MainWindow();
-            _mainWindow = mainWindow;
             desktop.MainWindow = mainWindow;
 
-            desktop.ShutdownRequested += (sender, e) =>
-            {
-                mainWindow.IsRealClose = true;
-            };
-
-            Program.ShowWindowAction = () =>
-            {
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                {
-                    mainWindow.Show();
-                    if (mainWindow.WindowState == Avalonia.Controls.WindowState.Minimized)
-                    {
-                        mainWindow.WindowState = Avalonia.Controls.WindowState.Normal;
-                    }
-                    mainWindow.Activate();
-                    mainWindow.Topmost = true;
-                    mainWindow.Topmost = false;
-                });
-            };
+            _windowController = new WindowController(mainWindow);
+            desktop.ShutdownRequested += (_, _) => _windowController.AllowClose();
         }
 
         base.OnFrameworkInitializationCompleted();
     }
 
-    private void TrayIcon_Clicked(object? sender, EventArgs e)
-    {
-        ToggleWindowVisibility();
-    }
+    /// <summary>Safe to call from any thread.</summary>
+    public void ShowMainWindow() => Dispatcher.UIThread.Post(() => _windowController?.Show());
 
-    private void ToggleWindow_Clicked(object? sender, EventArgs e)
+    /// <summary>Safe to call from any thread.</summary>
+    public void RequestExit() => Dispatcher.UIThread.Post(() =>
     {
-        ToggleWindowVisibility();
-    }
+        _windowController?.AllowClose();
+        (ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Shutdown();
+    });
 
-    private void Exit_Clicked(object? sender, EventArgs e)
-    {
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-        {
-            if (_mainWindow != null)
-            {
-                _mainWindow.IsRealClose = true;
-            }
-            desktop.Shutdown();
-        }
-    }
+    private void TrayIcon_Clicked(object? sender, EventArgs e) => _windowController?.ToggleVisibility();
 
-    private void ToggleWindowVisibility()
-    {
-        if (_mainWindow == null) return;
+    private void ToggleWindow_Clicked(object? sender, EventArgs e) => _windowController?.ToggleVisibility();
 
-        if (_mainWindow.IsVisible)
-        {
-            _mainWindow.Hide();
-        }
-        else
-        {
-            _mainWindow.Show();
-            _mainWindow.WindowState = WindowState.Normal;
-            _mainWindow.Activate();
-        }
-    }
+    private void Exit_Clicked(object? sender, EventArgs e) => RequestExit();
 }
