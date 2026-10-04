@@ -1,371 +1,180 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Ports;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Linq;
+using System.Threading.Tasks;
+using LilkaDeckApp.Device;
+using LilkaDeckApp.Transport;
 
 namespace LilkaDeckApp.Services;
 
-public class LilkaCommunicationService : IDisposable
+/// <summary>
+/// Compatibility facade that keeps the API and the messages MainWindow was written against.
+/// It can be deleted once the UI works with LilkaDeviceClient and words its own messages.
+/// </summary>
+public sealed class LilkaCommunicationService : IDisposable
 {
-    private SerialPort? _serialPort;
-    private TaskCompletionSource<string>? _ackTcs;
-    private CancellationTokenSource? _scannerCts;
-    private bool _isSyncingActive = false; // Blocks Heartbeat during file transfers
+    private readonly ConnectionMonitor _monitor;
+    private readonly DeviceTimeouts? _timeouts;
+    private volatile LilkaDeviceClient? _client;
+
+    public LilkaCommunicationService()
+        : this(new ConnectionMonitor(SerialPort.GetPortNames, port => new SerialPortTransport(port)))
+    {
+    }
+
+    public LilkaCommunicationService(ConnectionMonitor monitor, DeviceTimeouts? timeouts = null)
+    {
+        _monitor = monitor;
+        _timeouts = timeouts;
+
+        _monitor.SessionCreated += AttachToSession;
+        _monitor.Connected += HandleConnected;
+        _monitor.Disconnected += HandleDisconnected;
+    }
 
     public event Action<string>? OnExecuteRequested;
     public event Action<string>? OnLogMessage;
     public event Action<Exception>? OnError;
-
     public event Action<string>? OnConnected;
     public event Action? OnDisconnected;
 
-    public bool IsConnected { get; private set; }
-    public string ConnectedPortName => _serialPort?.PortName ?? string.Empty;
+    public bool IsConnected => _monitor.IsConnected;
+    public string ConnectedPortName => _monitor.ConnectedPortName;
 
-    public void StartAutoScanner()
-    {
-        _scannerCts?.Cancel();
-        _scannerCts = new CancellationTokenSource();
-        _ = ScanAndMonitorLoopAsync(_scannerCts.Token);
-    }
+    public void StartAutoScanner() => _monitor.Start();
 
-    private async Task ScanAndMonitorLoopAsync(CancellationToken token)
+    public void Disconnect() => _monitor.Disconnect();
+
+    public void Dispose() => _monitor.Dispose();
+
+    public async Task SyncDataAsync(
+        int profileId, byte[] jsonBytes, Dictionary<string, string> filesToSend, IProgress<int> progress, IProgress<string> status)
     {
-        while (!token.IsCancellationRequested)
+        var client = _client;
+        if (client == null || !IsConnected) throw new InvalidOperationException("Not connected to Lilka.");
+
+        // Reading everything first means a missing file stops the sync before anything is sent.
+        var icons = new List<SyncFile>();
+        foreach (var (name, path) in filesToSend)
         {
-            if (!IsConnected)
-            {
-                // MODE 1: DEVICE SEARCH
-                string[] ports = SerialPort.GetPortNames();
-                foreach (var port in ports)
-                {
-                    if (token.IsCancellationRequested) break;
-                    if (await TryConnectAndPingAsync(port))
-                    {
-                        IsConnected = true;
-                        OnConnected?.Invoke(port);
-                        break; // We found Lilka, so we're calling off the search
-                    }
-                }
-            }
-            else if (!_isSyncingActive)
-            {
-                // MODE 2: HEARTBEAT (Connection Monitoring)
-                try
-                {
-                    _serialPort!.WriteLine("PING");
-                    if (!await WaitForAck("LILKA_PONG:v1.0", 1000))
-                    {
-                        throw new Exception("Heartbeat timeout"); // No heartbeat
-                    }
-                }
-                catch
-                {
-                    Disconnect(); // Disconnect and reset the status
-                }
-            }
-
-            // 2-second pause between scans / heartbeats
-            await Task.Delay(2000, token);
+            icons.Add(new SyncFile(name, await File.ReadAllBytesAsync(path)));
         }
-    }
-
-    private async Task<bool> TryConnectAndPingAsync(string portName)
-    {
-        try
-        {
-            _serialPort = new SerialPort(portName, 115200) { ReadTimeout = 100 };
-            _serialPort.DtrEnable = true;
-            _serialPort.RtsEnable = true;
-            _serialPort.DataReceived += SerialPort_DataReceived;
-            _serialPort.Open();
-
-            // Allow the board 1.5 seconds to reboot (via DTR)
-            await Task.Delay(1500);
-
-            _serialPort.WriteLine("PING");
-
-            // If the board responded with our “PONG,” it's Lilka
-            if (await WaitForAck("LILKA_PONG:v1.0", 1000))
-            {
-                return true;
-            }
-
-            // This is some other device
-            DisconnectInternal();
-            return false;
-        }
-        catch
-        {
-            DisconnectInternal();
-            return false;
-        }
-    }
-
-    public void Disconnect()
-    {
-        if (!IsConnected) return;
-        IsConnected = false;
-        DisconnectInternal();
-        OnDisconnected?.Invoke();
-    }
-
-    private void DisconnectInternal()
-    {
-        if (_serialPort != null && _serialPort.IsOpen)
-        {
-            _serialPort.DataReceived -= SerialPort_DataReceived;
-            _serialPort.Close();
-            _serialPort.Dispose();
-        }
-        _serialPort = null;
-    }
-
-    private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
-    {
-        if (_serialPort == null || !_serialPort.IsOpen) return;
 
         try
         {
-            while (_serialPort.BytesToRead > 0)
-            {
-                string data = _serialPort.ReadLine().Trim();
-
-                if (data.StartsWith("EXECUTE:"))
-                {
-                    OnExecuteRequested?.Invoke(data.Substring(8).Trim());
-                }
-                else if (data.StartsWith("ACK_") || data.StartsWith("LILKA_PONG") || data.StartsWith("PROFILES:"))
-                {
-                    _ackTcs?.TrySetResult(data);
-                }
-                else if (data.Length > 0)
-                {
-                    OnLogMessage?.Invoke($"[ESP32] {data}");
-                }
-            }
+            await client.SyncAsync(profileId, new SyncFile("config.json", jsonBytes), icons,
+                new LegacyProgress(profileId, progress, status), default);
         }
-        catch (TimeoutException) { }
-        catch (Exception ex) { OnError?.Invoke(ex); }
-    }
-
-    public async Task SyncDataAsync(int profileId, byte[] jsonBytes, Dictionary<string, string> filesToSend, IProgress<int> progress, IProgress<string> status)
-    {
-        if (!IsConnected) throw new InvalidOperationException("Not connected to Lilka.");
-
-        _isSyncingActive = true; // Pause Heartbeat
-        try
+        catch (DeviceTimeoutException ex)
         {
-            int totalFiles = 1 + filesToSend.Count;
-            int currentFile = 0;
-
-            status.Report($"Запуск (Профіль {profileId})...");
-            _serialPort!.WriteLine($"SYNC_START:{profileId}");
-            if (!await WaitForAck("ACK_SYNC", 3000)) throw new Exception("Лілка не відповіла на SYNC_START");
-
-            status.Report("Відправка config.json...");
-            await SendFileChunksAsync("config.json", jsonBytes);
-            currentFile++;
-            progress.Report((currentFile * 100) / totalFiles);
-
-            foreach (var file in filesToSend)
-            {
-                status.Report($"Відправка {file.Key}...");
-                byte[] imgBytes = await File.ReadAllBytesAsync(file.Value);
-                await SendFileChunksAsync(file.Key, imgBytes);
-
-                currentFile++;
-                progress.Report((currentFile * 100) / totalFiles);
-            }
-
-            status.Report("Перезавантаження UI Лілки...");
-            _serialPort.WriteLine("SYNC_END");
-            if (!await WaitForAck("ACK_END", 3000)) throw new Exception("Лілка не відповіла на SYNC_END");
+            throw new Exception(DescribeTimeout(ex), ex);
         }
-        finally
-        {
-            _isSyncingActive = false; // Restoring Heartbeat
-        }
-    }
-
-    private async Task SendFileChunksAsync(string fileName, byte[] data)
-    {
-        _serialPort!.WriteLine($"FILE_START:{fileName}:{data.Length}");
-        if (!await WaitForAck("ACK_FILE", 3000)) throw new Exception($"Немає ACK_FILE для {fileName}");
-
-        int offset = 0;
-        int chunkSize = 256;
-
-        while (offset < data.Length)
-        {
-            int size = Math.Min(chunkSize, data.Length - offset);
-            _serialPort.Write(data, offset, size);
-            offset += size;
-
-            if (offset < data.Length)
-            {
-                if (!await WaitForAck("ACK_CHUNK", 5000))
-                    throw new Exception($"Лілка зависла на записі {fileName} (offset: {offset})");
-            }
-        }
-
-        if (!await WaitForAck("ACK_DONE", 8000)) throw new Exception($"Немає ACK_DONE для {fileName}");
-    }
-
-    private async Task<bool> WaitForAck(string expectedAck, int timeoutMs)
-    {
-        _ackTcs = new TaskCompletionSource<string>();
-        var timeoutTask = Task.Delay(timeoutMs);
-
-        var completedTask = await Task.WhenAny(_ackTcs.Task, timeoutTask);
-        if (completedTask == timeoutTask) return false;
-
-        return await _ackTcs.Task == expectedAck;
-    }
-
-    public void Dispose()
-    {
-        _scannerCts?.Cancel();
-        DisconnectInternal();
     }
 
     public async Task<string[]> GetProfilesListAsync()
     {
-        if (!IsConnected) return Array.Empty<string>();
-
-        _serialPort!.WriteLine("GET_PROFILES");
-
-        var timeoutTask = Task.Delay(2000);
-        _ackTcs = new TaskCompletionSource<string>();
-
-        var completedTask = await Task.WhenAny(_ackTcs.Task, timeoutTask);
-        if (completedTask == timeoutTask) return Array.Empty<string>();
-
-        string response = await _ackTcs.Task;
-        if (response.StartsWith("PROFILES:"))
-        {
-            string data = response.Substring(9).Trim();
-            if (string.IsNullOrEmpty(data)) return Array.Empty<string>();
-
-            return data.Split(',')
-                       .OrderBy(id => int.Parse(id))
-                       .ToArray();
-        }
-        return Array.Empty<string>();
+        var ids = await QueryAsync<IReadOnlyList<int>>(c => c.GetProfileIdsAsync(default), Array.Empty<int>());
+        return ids.OrderBy(id => id).Select(id => id.ToString(CultureInfo.InvariantCulture)).ToArray();
     }
-    
+
+    public Task<int?> CreateProfileAsync() =>
+        QueryAsync<int?>(async c => await c.CreateProfileAsync(default), null);
+
+    public Task<bool> DeleteProfileAsync(int profileId) =>
+        QueryAsync(c => c.DeleteProfileAsync(profileId, default), false);
+
+    // A silent device looks like a missing file, as it always did.
+    public Task<byte[]?> DownloadFileAsync(int profileId, string fileName) =>
+        QueryAsync<byte[]?>(c => c.DownloadFileAsync(profileId, fileName, default), null);
+
     public void SendColorPreview(string hexColor)
     {
-        if (!IsConnected) return;
-        try 
-        {
-            // Fire-and-forget sending. We don't wait for an ACK so as not to block the UI when quickly dragging the palette
-            _serialPort!.WriteLine($"SET_COLOR:{hexColor}");
-        } 
-        catch { /* Ignore errors during preview */ }
+        var client = _client;
+        if (client != null && IsConnected) _ = IgnoreFailuresAsync(client.TrySetColorAsync(hexColor, default));
     }
 
-    public async Task<byte[]?> DownloadFileAsync(int profileId, string fileName)
+    private async Task<T> QueryAsync<T>(Func<LilkaDeviceClient, Task<T>> query, T fallback)
     {
-        if (!IsConnected) return null;
-
-        // We're temporarily disabling the text parser so it doesn't crash when it encounters the image's binary data
-        _serialPort!.DataReceived -= SerialPort_DataReceived;
-        _isSyncingActive = true;
+        var client = _client;
+        if (client == null || !IsConnected) return fallback;
 
         try
         {
-            _serialPort.WriteLine($"FILE_GET:{profileId}:{fileName}");
-
-            // Waiting for confirmation and the file size
-            string response = "";
-            int retries = 20; // 2-second timeout (20 * 100 ms)
-            while (retries-- > 0)
-            {
-                try
-                {
-                    response = _serialPort.ReadLine().Trim();
-
-                    // If we've received the desired response, we exit the loop
-                    if (response.StartsWith("FILE_SEND_START:") || response == "ERR:FILE_NOT_FOUND") break;
-
-                    // If any other log arrives, we simply print it and continue listening
-                    if (response.Length > 0) OnLogMessage?.Invoke($"[ESP32] {response}");
-                }
-                catch (TimeoutException) { }
-            }
-
-            if (response == "ERR:FILE_NOT_FOUND" || string.IsNullOrEmpty(response)) return null;
-            if (!response.StartsWith("FILE_SEND_START:")) throw new Exception("Unexpected response");
-
-            int size = int.Parse(response.Substring(16));
-            byte[] buffer = new byte[size];
-            int totalRead = 0;
-
-            // Read raw bytes
-            while (totalRead < size)
-            {
-                int read = _serialPort.BaseStream.Read(buffer, totalRead, size - totalRead);
-                if (read == 0) break;
-                totalRead += read;
-            }
-            return buffer;
+            return await query(client);
         }
-        finally
+        catch (Exception ex) when (ex is DeviceTimeoutException or TransportClosedException)
         {
-            _isSyncingActive = false;
-            // Put the text parser back where it belongs
-            _serialPort.DataReceived += SerialPort_DataReceived;
-        }
-    }
-    
-    public async Task<int?> CreateProfileAsync()
-    {
-        if (!IsConnected) return null;
-
-        _isSyncingActive = true;
-        try
-        {
-            _serialPort!.WriteLine("PROFILE_CREATE");
-
-            _ackTcs = new TaskCompletionSource<string>();
-            var timeoutTask = Task.Delay(3000);
-            var completedTask = await Task.WhenAny(_ackTcs.Task, timeoutTask);
-
-            if (completedTask == timeoutTask) return null;
-
-            string response = await _ackTcs.Task;
-            if (response.StartsWith("ACK_PROFILE_CREATE:"))
-            {
-                if (int.TryParse(response.Substring(19), out int newId))
-                {
-                    return newId;
-                }
-            }
-            return null;
-        }
-        finally
-        {
-            _isSyncingActive = false;
+            return fallback;
         }
     }
 
-    public async Task<bool> DeleteProfileAsync(int profileId)
+    private static async Task IgnoreFailuresAsync(Task task)
     {
-        if (!IsConnected) return false;
-
-        _isSyncingActive = true;
         try
         {
-            _serialPort!.WriteLine($"PROFILE_DELETE:{profileId}");
-            return await WaitForAck("ACK_PROFILE_DELETE", 5000);
+            await task;
         }
-        finally
+        catch (Exception)
         {
-            _isSyncingActive = false;
+            // A lost color preview is harmless.
+        }
+    }
+
+    private void AttachToSession(DeviceSession session)
+    {
+        session.LogReceived += text => OnLogMessage?.Invoke($"[ESP32] {text}");
+        session.ExecuteRequested += target => OnExecuteRequested?.Invoke(target);
+    }
+
+    private void HandleConnected(string portName)
+    {
+        _client = new LilkaDeviceClient(_monitor.Session!, _timeouts);
+        OnConnected?.Invoke(portName);
+    }
+
+    private void HandleDisconnected(Exception? failure)
+    {
+        _client = null;
+        OnDisconnected?.Invoke();
+        if (failure != null && failure is not TransportClosedException) OnError?.Invoke(failure);
+    }
+
+    private static string DescribeTimeout(DeviceTimeoutException ex) => ex.Step switch
+    {
+        DeviceStep.StartSync => "Лілка не відповіла на SYNC_START",
+        DeviceStep.AcceptFile => $"Немає ACK_FILE для {ex.FileName}",
+        DeviceStep.WriteChunk => $"Лілка зависла на записі {ex.FileName} (offset: {ex.Offset})",
+        DeviceStep.FinishFile => $"Немає ACK_DONE для {ex.FileName}",
+        DeviceStep.EndSync => "Лілка не відповіла на SYNC_END",
+        _ => ex.Message
+    };
+
+    // Reports straight away, in order, like the old code did, instead of posting to a synchronization context.
+    private sealed class LegacyProgress : IProgress<SyncProgress>
+    {
+        private readonly int _profileId;
+        private readonly IProgress<int> _percent;
+        private readonly IProgress<string> _status;
+
+        public LegacyProgress(int profileId, IProgress<int> percent, IProgress<string> status)
+        {
+            _profileId = profileId;
+            _percent = percent;
+            _status = status;
+        }
+
+        public void Report(SyncProgress value)
+        {
+            switch (value.Stage)
+            {
+                case SyncStage.Started: _status.Report($"Запуск (Профіль {_profileId})..."); break;
+                case SyncStage.FileStarted: _status.Report($"Відправка {value.FileName}..."); break;
+                case SyncStage.FileFinished: _percent.Report(value.Percent); break;
+                case SyncStage.Finishing: _status.Report("Перезавантаження UI Лілки..."); break;
+            }
         }
     }
 }
