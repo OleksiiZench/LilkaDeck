@@ -28,10 +28,6 @@ public partial class MainWindow : Window
     private string _lastColor = "";
     private bool _isDesktopSyncing = false;
     private bool _pendingSync = false;
-
-    private string[] _availableProfiles = Array.Empty<string>();
-    private int _currentProfileIndex = 0;
-
     private readonly LilkaCommunicationService _comService;
     private readonly ProfileDataService _profileData;
     private Dictionary<string, Button> _deckButtons;
@@ -110,191 +106,6 @@ public partial class MainWindow : Window
         });
     }
 
-    private async Task RefreshProfileStateAsync(string targetProfileId = "0")
-    {
-        _availableProfiles = await _comService.GetProfilesListAsync();
-
-        if (_availableProfiles.Length > 0)
-        {
-            _currentProfileIndex = Array.IndexOf(_availableProfiles, targetProfileId);
-            if (_currentProfileIndex == -1) _currentProfileIndex = 0;
-
-            await LoadActiveProfileAsync();
-        }
-        else
-        {
-            Dispatcher.UIThread.Post(() =>
-            {
-                ActiveProfileTitle.Text = "Профілі відсутні";
-                DeleteProfileButton.IsEnabled = false;
-            });
-        }
-    }
-
-    private void OnPrevProfileClicked(object? sender, RoutedEventArgs e)
-    {
-        if (_availableProfiles.Length == 0 || _isLoadingProfile) return;
-        _currentProfileIndex = (_currentProfileIndex == 0) ? (_availableProfiles.Length - 1) : (_currentProfileIndex - 1);
-        _ = LoadActiveProfileAsync();
-    }
-
-    private void OnNextProfileClicked(object? sender, RoutedEventArgs e)
-    {
-        if (_availableProfiles.Length == 0 || _isLoadingProfile) return;
-        _currentProfileIndex = (_currentProfileIndex + 1) % _availableProfiles.Length;
-        _ = LoadActiveProfileAsync();
-    }
-
-    private async Task LoadActiveProfileAsync()
-    {
-        if (_availableProfiles.Length == 0) return;
-
-        string profileIdStr = _availableProfiles[_currentProfileIndex];
-        if (!int.TryParse(profileIdStr, out int profileId)) return;
-
-        AppLog($"Завантаження Профілю {profileId}...");
-        _isLoadingProfile = true;
-
-        Dispatcher.UIThread.Post(() =>
-        {
-            ActiveProfileTitle.Text = $"Профіль {profileId}";
-            DeleteProfileButton.IsEnabled = _availableProfiles.Length > 1;
-        });
-
-        try
-        {
-            byte[]? jsonBytes = await _comService.DownloadFileAsync(profileId, "config.json");
-            if (jsonBytes != null)
-            {
-                string jsonString = System.Text.Encoding.UTF8.GetString(jsonBytes);
-                var config = _profileData.LoadFromJson(jsonString);
-
-                if (config != null)
-                {
-                    Dispatcher.UIThread.Post(() =>
-                    {
-                        ProfileNameTextBox.TextChanged -= OnProfileNameChanged;
-                        ProfileNameTextBox.Text = config.ProfileName;
-                        ProfileNameTextBox.TextChanged += OnProfileNameChanged;
-
-                        ActiveProfileTitle.Text = $"Профіль {profileId}: {config.ProfileName}";
-
-                        try
-                        {
-                            _lastColor = config.ActiveColor;
-                            ActiveColorPicker.Color = Color.Parse(config.ActiveColor);
-                        }
-                        catch { }
-                    });
-
-                    foreach (var kvp in config.Buttons)
-                    {
-                        if (!string.IsNullOrEmpty(kvp.Value.Icon))
-                        {
-                            string expectedCachePath = Path.Combine(_profileData.CacheDirectory, kvp.Value.Icon);
-                            if (!File.Exists(expectedCachePath))
-                            {
-                                AppLog($"Завантаження {kvp.Value.Icon}...");
-                                byte[]? iconBytes = await _comService.DownloadFileAsync(profileId, kvp.Value.Icon);
-                                if (iconBytes != null)
-                                {
-                                    await File.WriteAllBytesAsync(expectedCachePath, iconBytes);
-                                    _profileData.UpdateConfig(kvp.Key, c => c.IconFullPath = expectedCachePath);
-                                }
-                            }
-                        }
-                    }
-                    UpdateDeckVisuals();
-                }
-            }
-            AppLog("Готово до редагування");
-        }
-        catch (Exception ex)
-        {
-            HandleError(ex);
-        }
-        finally
-        {
-            _isLoadingProfile = false;
-
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (!string.IsNullOrEmpty(_currentSelectedPosition))
-                {
-                    OnDeckButtonClicked(new Button { Tag = _currentSelectedPosition }, new RoutedEventArgs());
-                }
-            });
-        }
-    }
-
-    private async void OnAddProfileClicked(object? sender, RoutedEventArgs e)
-    {
-        if (!_comService.IsConnected || _isLoadingProfile) return;
-
-        AppLog("Створення нового профілю...");
-        AddProfileButton.IsEnabled = false;
-        DeleteProfileButton.IsEnabled = false;
-
-        try
-        {
-            int? newId = await _comService.CreateProfileAsync();
-            if (newId.HasValue)
-            {
-                AppLog($"Профіль {newId.Value} успішно створено!");
-                await RefreshProfileStateAsync(newId.Value.ToString());
-            }
-            else
-            {
-                AppLog("Помилка: Лілка не відповіла на створення профілю.", true);
-            }
-        }
-        catch (Exception ex)
-        {
-            HandleError(ex);
-        }
-        finally
-        {
-            AddProfileButton.IsEnabled = true;
-        }
-    }
-
-    private async void OnDeleteProfileClicked(object? sender, RoutedEventArgs e)
-    {
-        if (!_comService.IsConnected || _isLoadingProfile || _availableProfiles.Length == 0) return;
-
-        string profileIdStr = _availableProfiles[_currentProfileIndex];
-        if (!int.TryParse(profileIdStr, out int profileId)) return;
-
-        AppLog($"Видалення профілю {profileId}...");
-        AddProfileButton.IsEnabled = false;
-        DeleteProfileButton.IsEnabled = false;
-
-        try
-        {
-            bool success = await _comService.DeleteProfileAsync(profileId);
-            if (success)
-            {
-                AppLog("Профіль успішно видалено!");
-                _profileData.ClearState();
-                await RefreshProfileStateAsync("0");
-            }
-            else
-            {
-                AppLog("Помилка при видаленні профілю.", true);
-                DeleteProfileButton.IsEnabled = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            HandleError(ex);
-            DeleteProfileButton.IsEnabled = true;
-        }
-        finally
-        {
-            AddProfileButton.IsEnabled = true;
-        }
-    }
-
     // --- AUTO-SYNCHRONIZATION LOGIC ---
 
     private void TriggerAutoSync()
@@ -312,7 +123,7 @@ public partial class MainWindow : Window
 
     private async Task PerformSyncAsync()
     {
-        if (!_comService.IsConnected || _availableProfiles.Length == 0) return;
+        if (!_comService.IsConnected || !_profileBrowser.HasProfiles) return;
 
         if (_isDesktopSyncing)
         {
@@ -334,8 +145,7 @@ public partial class MainWindow : Window
                 string hexColor = $"#{ActiveColorPicker.Color.R:X2}{ActiveColorPicker.Color.G:X2}{ActiveColorPicker.Color.B:X2}";
                 string profileName = ProfileNameTextBox.Text ?? "Profile";
 
-                string profileIdStr = _availableProfiles[_currentProfileIndex];
-                int profileId = int.TryParse(profileIdStr, out int id) ? id : 0;
+                int profileId = _profileBrowser.CurrentId ?? 0;
 
                 Dispatcher.UIThread.Post(() =>
                 {

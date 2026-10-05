@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using LilkaDeckApp.Domain;
 using LilkaDeckApp.Models;
@@ -15,21 +15,22 @@ namespace LilkaDeckApp.Services;
 public class ProfileDataService
 {
     private readonly DeckState _state = new();
-    private readonly IconCache _iconCache;
-    private readonly IconImporter _iconImporter;
 
     // The text exactly as the editor last set it. Switching the action type back and forth must not
     // rewrite it, so a URL containing "," or "+" survives even while the type is briefly "shortcut".
     private readonly Dictionary<DeckPosition, string> _actionText = new();
 
+    private IconCache _iconCache;
+    private IconImporter _iconImporter;
+
     public ProfileDataService()
     {
         string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        _iconCache = new IconCache(Path.Combine(appData, "LilkaDeck", "Cache"));
-        _iconImporter = new IconImporter(_iconCache);
+        Caches = new ProfileCaches(Path.Combine(appData, "LilkaDeck", "Cache"));
+        ActivateProfile(0);
     }
 
-    public string CacheDirectory => _iconCache.DirectoryPath;
+    public ProfileCaches Caches { get; }
 
     public ButtonConfig GetConfig(string position) =>
         DeckPositions.TryParse(position, out var parsed) ? ToConfig(parsed) : new ButtonConfig();
@@ -57,22 +58,23 @@ public class ProfileDataService
         _state.Clear();
     }
 
-    public ProfileConfigDto? LoadFromJson(string jsonContent)
+    /// <summary>Makes a profile loaded from the device the current one; icons imported from now on go to its cache.</summary>
+    public void ShowProfile(int profileId, ProfileDocument document)
     {
-        ClearState();
-
-        if (!ProfileSerializer.TryDeserialize(jsonContent, out var document, out var error))
-        {
-            Trace.TraceWarning($"Cannot parse the profile config: {error}");
-            return null;
-        }
-
+        ActivateProfile(profileId);
+        _actionText.Clear();
         _state.Load(document, _iconCache.Find);
-        return ProfileSerializer.ToDto(document);
     }
 
-    /// <summary>Converts a picture into an icon in the cache. Throws <see cref="IconImportException"/> for unusable files.</summary>
+    /// <summary>Converts a picture into an icon in the current profile's cache. Throws <see cref="IconImportException"/> for unusable files.</summary>
     public ImportedIcon ImportIcon(string sourcePath) => _iconImporter.Import(sourcePath);
+
+    [MemberNotNull(nameof(_iconCache), nameof(_iconImporter))]
+    private void ActivateProfile(int profileId)
+    {
+        _iconCache = Caches.For(profileId);
+        _iconImporter = new IconImporter(_iconCache);
+    }
 
     private ButtonConfig ToConfig(DeckPosition position)
     {

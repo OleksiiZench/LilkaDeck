@@ -6,6 +6,7 @@ using System.IO.Ports;
 using System.Linq;
 using System.Threading.Tasks;
 using LilkaDeckApp.Device;
+using LilkaDeckApp.Profiles;
 using LilkaDeckApp.Transport;
 
 namespace LilkaDeckApp.Services;
@@ -14,7 +15,7 @@ namespace LilkaDeckApp.Services;
 /// Compatibility facade that keeps the API and the messages MainWindow was written against.
 /// It can be deleted once the UI works with LilkaDeviceClient and words its own messages.
 /// </summary>
-public sealed class LilkaCommunicationService : IDisposable
+public sealed class LilkaCommunicationService : IDisposable, IProfileFileSource
 {
     private readonly ConnectionMonitor _monitor;
     private readonly DeviceTimeouts? _timeouts;
@@ -89,6 +90,9 @@ public sealed class LilkaCommunicationService : IDisposable
     // A silent device looks like a missing file, as it always did.
     public Task<byte[]?> DownloadFileAsync(int profileId, string fileName) =>
         QueryAsync<byte[]?>(c => c.DownloadFileAsync(profileId, fileName, default), null);
+
+    Task<byte[]?> IProfileFileSource.DownloadFileAsync(int profileId, string fileName, System.Threading.CancellationToken cancellationToken) =>
+        DownloadFileAsync(profileId, fileName);
 
     public void SendColorPreview(string hexColor)
     {
