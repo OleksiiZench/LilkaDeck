@@ -33,4 +33,11 @@ public sealed class IconCache
         }
         return cachedPath;
     }
+
+    public string Save(string iconFileName, byte[] content)
+    {
+        string cachedPath = Path.Combine(DirectoryPath, iconFileName);
+        File.WriteAllBytes(cachedPath, content);
+        return cachedPath;
+    }
 }
