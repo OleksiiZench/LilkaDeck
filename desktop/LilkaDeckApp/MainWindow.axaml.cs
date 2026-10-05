@@ -516,54 +516,6 @@ public partial class MainWindow : Window
         TriggerAutoSync();
     }
 
-    private async void OnBrowseIconClicked(object? sender, RoutedEventArgs e)
-    {
-        if (string.IsNullOrEmpty(_currentSelectedPosition)) return;
-
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
-
-        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Оберіть картинку",
-            AllowMultiple = false,
-            FileTypeFilter = new[] { new FilePickerFileType("Images") { Patterns = new[] { "*.png", "*.jpg", "*.raw" } } }
-        });
-
-        if (files.Count > 0)
-        {
-            string inputPath = files[0].Path.LocalPath;
-            string fileName = files[0].Name;
-            string rawOutputPath = inputPath;
-
-            if (!fileName.EndsWith(".raw"))
-            {
-                rawOutputPath = Path.Combine(Path.GetDirectoryName(inputPath)!, Path.GetFileNameWithoutExtension(fileName) + ".raw");
-                try
-                {
-                    ImageConverter.ConvertToRgb565Raw(inputPath, rawOutputPath);
-                    fileName = Path.GetFileName(rawOutputPath);
-                }
-                catch (Exception ex) { AppLog($"Conversion Error: {ex.Message}", true); }
-            }
-
-            IconPathTextBox.Text = fileName;
-            string cachedPath = _profileData.CacheImage(rawOutputPath, fileName);
-
-            _profileData.UpdateConfig(_currentSelectedPosition, c =>
-            {
-                c.IconPath = fileName;
-                c.IconFullPath = cachedPath;
-                c.NeedsUpload = true;
-            });
-
-            UpdateDeckVisuals();
-
-            _autoSyncTimer.Stop();
-            await PerformSyncAsync();
-        }
-    }
-
     private void UpdateDeckVisuals()
     {
         Dispatcher.UIThread.InvokeAsync(() =>
@@ -615,71 +567,6 @@ public partial class MainWindow : Window
         }
     }
 
-    // --- DRAG AND DROP LOGIC ---
-    private async void OnDrop(object? sender, DragEventArgs e)
-    {
-        var files = e.DataTransfer.TryGetFiles()?.ToArray();
-
-        if (files != null && files.Length > 0 && e.Source is Control targetControl)
-        {
-            Button? targetButton = targetControl.FindAncestorOfType<Button>(includeSelf: true);
-            
-            if (targetButton != null && targetButton.Tag is string position)
-            {
-                if (_currentSelectedPosition != position)
-                {
-                    OnDeckButtonClicked(targetButton, new RoutedEventArgs());
-                }
-
-                string? inputPath = files[0].TryGetLocalPath() ?? files[0].Path.LocalPath;
-                if (string.IsNullOrEmpty(inputPath)) return;
-
-                string fileName = files[0].Name;
-                string extension = Path.GetExtension(fileName).ToLower();
-
-                if (extension != ".png" && extension != ".jpg" && extension != ".jpeg" && extension != ".raw")
-                {
-                    AppLog("Помилка: підтримуються лише формати PNG, JPG, JPEG та RAW.", true);
-                    return;
-                }
-
-                AppLog($"Обробка файлу {fileName} для кнопки {position}...");
-                string rawOutputPath = inputPath;
-
-                if (extension != ".raw")
-                {
-                    rawOutputPath = Path.Combine(Path.GetDirectoryName(inputPath)!, Path.GetFileNameWithoutExtension(fileName) + ".raw");
-                    try
-                    {
-                        ImageConverter.ConvertToRgb565Raw(inputPath, rawOutputPath);
-                        fileName = Path.GetFileName(rawOutputPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        AppLog($"Помилка конвертації: {ex.Message}", true);
-                        return;
-                    }
-                }
-
-                IconPathTextBox.Text = fileName;
-
-                string cachedPath = _profileData.CacheImage(rawOutputPath, fileName);
-
-                _profileData.UpdateConfig(position, c =>
-                {
-                    c.IconPath = fileName;
-                    c.IconFullPath = cachedPath;
-                    c.NeedsUpload = true;
-                });
-
-                UpdateDeckVisuals();
-
-                _autoSyncTimer.Stop();
-                await PerformSyncAsync();
-            }
-        }
-    }
-    
     // --- GALLERY LOGIC ---
 
     private void OnGalleryClicked(object? sender, RoutedEventArgs e)
@@ -741,47 +628,6 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             AppLog($"Помилка завантаження галереї: {ex.Message}", true);
-        }
-    }
-
-    private async void OnGalleryIconSelected(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button btn && btn.Tag is string inputPath)
-        {
-            if (string.IsNullOrEmpty(_currentSelectedPosition)) return;
-
-            string fileName = Path.GetFileName(inputPath);
-            AppLog($"Обрано з галереї: {fileName}");
-
-            string rawOutputPath = Path.Combine(Path.GetDirectoryName(inputPath)!, Path.GetFileNameWithoutExtension(fileName) + ".raw");
-
-            try
-            {
-                ImageConverter.ConvertToRgb565Raw(inputPath, rawOutputPath);
-                fileName = Path.GetFileName(rawOutputPath);
-
-                IconPathTextBox.Text = fileName;
-
-                string cachedPath = _profileData.CacheImage(rawOutputPath, fileName);
-
-                _profileData.UpdateConfig(_currentSelectedPosition, c =>
-                {
-                    c.IconPath = fileName;
-                    c.IconFullPath = cachedPath;
-                    c.NeedsUpload = true;
-                });
-
-                UpdateDeckVisuals();
-
-                GalleryButton.Flyout?.Hide();
-
-                _autoSyncTimer.Stop();
-                await PerformSyncAsync();
-            }
-            catch (Exception ex)
-            {
-                AppLog($"Помилка застосування іконки: {ex.Message}", true);
-            }
         }
     }
 

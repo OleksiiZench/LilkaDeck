@@ -16,6 +16,7 @@ public class ProfileDataService
 {
     private readonly DeckState _state = new();
     private readonly IconCache _iconCache;
+    private readonly IconImporter _iconImporter;
 
     // The text exactly as the editor last set it. Switching the action type back and forth must not
     // rewrite it, so a URL containing "," or "+" survives even while the type is briefly "shortcut".
@@ -25,6 +26,7 @@ public class ProfileDataService
     {
         string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         _iconCache = new IconCache(Path.Combine(appData, "LilkaDeck", "Cache"));
+        _iconImporter = new IconImporter(_iconCache);
     }
 
     public string CacheDirectory => _iconCache.DirectoryPath;
@@ -69,7 +71,8 @@ public class ProfileDataService
         return ProfileSerializer.ToDto(document);
     }
 
-    public string CacheImage(string originalPath, string fileName) => _iconCache.Store(originalPath, fileName);
+    /// <summary>Converts a picture into an icon in the cache. Throws <see cref="IconImportException"/> for unusable files.</summary>
+    public ImportedIcon ImportIcon(string sourcePath) => _iconImporter.Import(sourcePath);
 
     private ButtonConfig ToConfig(DeckPosition position)
     {
