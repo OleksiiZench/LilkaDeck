@@ -58,6 +58,24 @@ public sealed class DeckState
         return new ProfileDocument(name, activeColor, buttons);
     }
 
+    /// <summary>
+    /// Clears the "needs upload" flag of the icons that were sent. An icon that changed after the
+    /// payload was built keeps its flag, so the next save still sends it.
+    /// </summary>
+    public void MarkUploaded(IReadOnlyDictionary<string, string> sentIcons)
+    {
+        foreach (var position in DeckPositions.All)
+        {
+            var button = _buttons[position];
+            bool wasSent = button.IconNeedsUpload
+                && button.IconFilePath != null
+                && sentIcons.TryGetValue(button.Definition.IconFileName, out var sentPath)
+                && sentPath == button.IconFilePath;
+
+            if (wasSent) _buttons[position] = button with { IconNeedsUpload = false };
+        }
+    }
+
     /// <summary>Icon files that still have to be sent to the device, keyed by their file name.</summary>
     public Dictionary<string, string> CollectIconUploads(Func<string, bool> fileExists)
     {

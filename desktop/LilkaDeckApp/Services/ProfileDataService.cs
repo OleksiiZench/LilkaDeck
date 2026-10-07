@@ -69,6 +69,9 @@ public class ProfileDataService
     /// <summary>Converts a picture into an icon in the current profile's cache. Throws <see cref="IconImportException"/> for unusable files.</summary>
     public ImportedIcon ImportIcon(string sourcePath) => _iconImporter.Import(sourcePath);
 
+    /// <summary>Marks the icons that were just sent as uploaded.</summary>
+    public void MarkUploaded(IReadOnlyDictionary<string, string> sentIcons) => _state.MarkUploaded(sentIcons);
+
     [MemberNotNull(nameof(_iconCache), nameof(_iconImporter))]
     private void ActivateProfile(int profileId)
     {
