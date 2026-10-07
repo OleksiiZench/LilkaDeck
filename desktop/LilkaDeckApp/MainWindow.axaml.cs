@@ -24,10 +24,7 @@ public partial class MainWindow : Window
 {
     private string _currentSelectedPosition = "";
     private bool _isLoadingProfile = false;
-    private DispatcherTimer _autoSyncTimer;
     private string _lastColor = "";
-    private bool _isDesktopSyncing = false;
-    private bool _pendingSync = false;
     private readonly LilkaCommunicationService _comService;
     private readonly ProfileDataService _profileData;
     private Dictionary<string, Button> _deckButtons;
@@ -54,9 +51,6 @@ public partial class MainWindow : Window
 
         _profileData = new ProfileDataService();
         _comService = new LilkaCommunicationService();
-
-        _autoSyncTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
-        _autoSyncTimer.Tick += OnAutoSyncTimerTick;
 
         _comService.OnConnected += HandleConnected;
         _comService.OnDisconnected += HandleDisconnected;
@@ -103,86 +97,6 @@ public partial class MainWindow : Window
             AddProfileButton.IsEnabled = false;
             DeleteProfileButton.IsEnabled = false;
             AppLog("Пристрій відключено. Пошук...", true);
-        });
-    }
-
-    // --- AUTO-SYNCHRONIZATION LOGIC ---
-
-    private void TriggerAutoSync()
-    {
-        if (_isLoadingProfile || !_comService.IsConnected) return;
-        _autoSyncTimer.Stop();
-        _autoSyncTimer.Start();
-    }
-
-    private async void OnAutoSyncTimerTick(object? sender, EventArgs e)
-    {
-        _autoSyncTimer.Stop();
-        await PerformSyncAsync();
-    }
-
-    private async Task PerformSyncAsync()
-    {
-        if (!_comService.IsConnected || !_profileBrowser.HasProfiles) return;
-
-        if (_isDesktopSyncing)
-        {
-            _pendingSync = true;
-            return;
-        }
-
-        _isDesktopSyncing = true;
-
-        while (true)
-        {
-            _pendingSync = false;
-
-            try
-            {
-                SyncProgressBar.Value = 0;
-                AppLog("Автосинхронізація...");
-
-                string hexColor = $"#{ActiveColorPicker.Color.R:X2}{ActiveColorPicker.Color.G:X2}{ActiveColorPicker.Color.B:X2}";
-                string profileName = ProfileNameTextBox.Text ?? "Profile";
-
-                int profileId = _profileBrowser.CurrentId ?? 0;
-
-                Dispatcher.UIThread.Post(() =>
-                {
-                    ActiveProfileTitle.Text = $"Профіль {profileId}: {profileName}";
-                });
-
-                var payload = _profileData.BuildSyncPayload(profileName, hexColor);
-                var progress = new Progress<int>(percent => SyncProgressBar.Value = percent);
-                var status = new Progress<string>(msg => AppLog(msg));
-
-                await _comService.SyncDataAsync(profileId, payload.jsonBytes, payload.filesToSend, progress, status);
-                AppLog("Збережено на пристрій!");
-
-                foreach (var pos in new[] { "LeftUp", "LeftLeft", "LeftRight", "LeftDown", "RightUp", "RightLeft", "RightRight", "RightDown" })
-                {
-                    _profileData.UpdateConfig(pos, c => c.NeedsUpload = false);
-                }
-            }
-            catch (Exception ex)
-            {
-                HandleError(ex);
-            }
-
-            if (!_pendingSync) break;
-        }
-
-        _isDesktopSyncing = false;
-    }
-
-    // --- SERVICE EVENT HANDLERS ---
-
-    private void HandleExecuteRequest(string target)
-    {
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            try { Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true }); }
-            catch (Exception ex) { AppLog($"Launch error: {ex.Message}", true); }
         });
     }
 
@@ -282,48 +196,6 @@ public partial class MainWindow : Window
             _profileData.UpdateConfig(_currentSelectedPosition, c => c.Actions = tb.Text ?? "");
             TriggerAutoSync();
         }
-    }
-
-    private void OnActionsTextBoxKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
-    {
-        if (string.IsNullOrEmpty(_currentSelectedPosition)) return;
-
-        var config = _profileData.GetConfig(_currentSelectedPosition);
-        if (config.ActionType != "shortcut") return;
-
-        e.Handled = true;
-
-        if (e.Key == Avalonia.Input.Key.Back || e.Key == Avalonia.Input.Key.Delete)
-        {
-            ActionsTextBox.Text = "";
-            _profileData.UpdateConfig(_currentSelectedPosition, c => c.Actions = "");
-            TriggerAutoSync();
-            return;
-        }
-
-        if (KeyCaptureMap.ModifierKeys.Contains(e.Key)) return;
-
-        AppLog($"DEBUG KeyDown: Key={e.Key}, Modifiers={e.KeyModifiers}");
-
-        if (!KeyCaptureMap.Map.TryGetValue(e.Key, out string? mainToken))
-        {
-            AppLog($"Клавіша {e.Key} поки не підтримується прошивкою.", true);
-            return;
-        }
-
-        var tokens = new System.Collections.Generic.List<string>();
-        if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control)) tokens.Add("CTRL");
-        if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift)) tokens.Add("SHIFT");
-        if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Alt)) tokens.Add("ALT");
-        if (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Meta)) tokens.Add("GUI");
-        tokens.Add(mainToken);
-
-        string stored = string.Join(", ", tokens);
-        string display = string.Join(" + ", tokens);
-
-        ActionsTextBox.Text = display;
-        _profileData.UpdateConfig(_currentSelectedPosition, c => c.Actions = stored);
-        TriggerAutoSync();
     }
 
     private void UpdateDeckVisuals()

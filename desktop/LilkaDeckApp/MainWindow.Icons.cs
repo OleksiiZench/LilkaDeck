@@ -101,7 +101,6 @@ public partial class MainWindow
 
         UpdateDeckVisuals();
 
-        _autoSyncTimer.Stop();
-        await PerformSyncAsync();
+        await AutoSync.SyncNowAsync();
     }
 }
