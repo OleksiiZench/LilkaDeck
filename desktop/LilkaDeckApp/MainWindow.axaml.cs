@@ -40,6 +40,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        InitializeShell();
 
         AddHandler(DragDrop.DropEvent, OnDrop);
 
@@ -59,57 +60,6 @@ public partial class MainWindow : Window
         _comService.OnError += HandleError;
 
         _comService.StartAutoScanner();
-    }
-
-    private void AppLog(string message, bool isError = false)
-    {
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            string time = DateTime.Now.ToString("HH:mm:ss");
-            string prefix = isError ? "[ПОМИЛКА]" : "[ІНФО]";
-            string logLine = $"[{time}] {prefix} {message}\r\n";
-
-            LogTextBox.Text += logLine;
-            LogTextBox.CaretIndex = LogTextBox.Text?.Length ?? 0;
-        });
-    }
-
-    private async void HandleConnected(string portName)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            ConnectionStatusText.Text = $"Статус: Підключено ({portName})";
-            ConnectionStatusText.Foreground = SolidColorBrush.Parse("#4CAF50");
-            AddProfileButton.IsEnabled = true;
-            AppLog($"Підключено до порту {portName}");
-            AppLog("Завантаження конфігурації з Лілки...");
-        });
-
-        await RefreshProfileStateAsync();
-    }
-
-    private void HandleDisconnected()
-    {
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            ConnectionStatusText.Text = "Статус: Пошук пристрою...";
-            ConnectionStatusText.Foreground = SolidColorBrush.Parse("#FFA500");
-            AddProfileButton.IsEnabled = false;
-            DeleteProfileButton.IsEnabled = false;
-            AppLog("Пристрій відключено. Пошук...", true);
-        });
-    }
-
-    private void HandleLogMessage(string msg) => AppLog(msg);
-
-    private void HandleError(Exception ex)
-    {
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            ConnectionStatusText.Text = $"Помилка: {ex.Message}";
-            ConnectionStatusText.Foreground = SolidColorBrush.Parse("#FF5252");
-            AppLog($"Синхронізацію перервано: {ex.Message}", true);
-        });
     }
 
     // --- UI EVENT HANDLERS ---

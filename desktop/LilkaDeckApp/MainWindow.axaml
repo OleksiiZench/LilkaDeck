@@ -1,6 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="LilkaDeckApp.MainWindow"
+        xmlns:vm="using:LilkaDeckApp.ViewModels"
+        x:DataType="vm:MainViewModel"
         Title="LilkaDeck Configurator" 
         Width="1250" Height="830" MinWidth="1150"
         RequestedThemeVariant="Dark"
@@ -27,11 +29,11 @@
                 <TextBlock Text="Журнал подій" FontSize="20" FontWeight="Bold"/>
                 
                 <!-- Read-only console (Fixed max height so it doesn't look stretched) -->
-                <TextBox x:Name="LogTextBox" Height="300" IsReadOnly="True" TextWrapping="Wrap" Background="#1E1E1E" Foreground="#AAA" FontFamily="Consolas" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
-                
+                <TextBox x:Name="LogTextBox" Text="{Binding Activity.LogText, Mode=OneWay}" Height="300" IsReadOnly="True" TextWrapping="Wrap" Background="#1E1E1E" Foreground="#AAA" FontFamily="Consolas" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+
                 <!-- File transfer progress visualizer (Moved from the right panel) -->
                 <TextBlock Text="Прогрес синхронізації:" Foreground="#AAA" FontSize="12" Margin="0,10,0,0"/>
-                <ProgressBar x:Name="SyncProgressBar" Height="10" Minimum="0" Maximum="100" Value="0" HorizontalAlignment="Stretch"/>
+                <ProgressBar x:Name="SyncProgressBar" Height="10" Minimum="0" Maximum="100" Value="{Binding Activity.Progress}" HorizontalAlignment="Stretch"/>
                 
             </StackPanel>
         </Border>
@@ -86,7 +88,7 @@
                 
                 <!-- 1. Serial Port Connection Status -->
                 <TextBlock Text="Підключення до Лілки" FontSize="20" FontWeight="Bold"/>
-                <TextBlock x:Name="ConnectionStatusText" Text="Статус: Пошук пристрою..." Foreground="#FFA500" FontSize="16" FontWeight="SemiBold" Margin="0,5,0,0"/>
+                <TextBlock x:Name="ConnectionStatusText" Classes="status" Classes.connected="{Binding Connection.IsConnected}" Classes.error="{Binding Connection.IsError}" Text="{Binding Connection.StatusText}" FontSize="16" FontWeight="SemiBold" Margin="0,5,0,0"/>
 
                 <Separator Background="#555" Margin="0,5"/>
 
@@ -211,5 +213,9 @@
             <Setter Property="BorderBrush" Value="#4CAF50"/>
             <Setter Property="Background" Value="#000000"/>
         </Style>
+
+        <Style Selector="TextBlock.status"><Setter Property="Foreground" Value="#FFA500"/></Style>
+        <Style Selector="TextBlock.status.connected"><Setter Property="Foreground" Value="#4CAF50"/></Style>
+        <Style Selector="TextBlock.status.error"><Setter Property="Foreground" Value="#FF5252"/></Style>
     </Window.Styles>
 </Window>
