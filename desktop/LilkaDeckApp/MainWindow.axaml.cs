@@ -25,27 +25,14 @@ public partial class MainWindow : Window
     private string _currentSelectedPosition = "";
     private readonly LilkaCommunicationService _comService;
     private readonly ProfileDataService _profileData;
-    private Dictionary<string, Button> _deckButtons;
 
     public bool IsRealClose { get; set; } = false;
-
-    private readonly Dictionary<string, string> _defaultButtonTexts = new()
-    {
-        {"LeftUp", "UP"}, {"LeftLeft", "LEFT"}, {"LeftRight", "RIGHT"}, {"LeftDown", "DOWN"},
-        {"RightUp", "C"}, {"RightLeft", "D"}, {"RightRight", "A"}, {"RightDown", "B"}
-    };
 
     public MainWindow()
     {
         InitializeComponent();
 
         AddHandler(DragDrop.DropEvent, OnDrop);
-
-        _deckButtons = new Dictionary<string, Button>
-        {
-            { "LeftUp", BtnLeftUp }, { "LeftLeft", BtnLeftLeft }, { "LeftRight", BtnLeftRight }, { "LeftDown", BtnLeftDown },
-            { "RightUp", BtnRightUp }, { "RightLeft", BtnRightLeft }, { "RightRight", BtnRightRight }, { "RightDown", BtnRightDown }
-        };
 
         _profileData = new ProfileDataService();
         _comService = new LilkaCommunicationService();
@@ -61,29 +48,26 @@ public partial class MainWindow : Window
         _comService.StartAutoScanner();
     }
 
-    private void OnDeckButtonClicked(object? sender, RoutedEventArgs e)
+    private void ShowEditor(string position)
     {
-        if (sender is Button btn && btn.Tag is string position)
-        {
-            _currentSelectedPosition = position;
-            ButtonSettingsPanel.IsEnabled = true;
-            SelectedButtonLabel.Text = $"Редагування: {position}";
+        _currentSelectedPosition = position;
+        ButtonSettingsPanel.IsEnabled = true;
+        SelectedButtonLabel.Text = $"Редагування: {position}";
 
-            var config = _profileData.GetConfig(position);
+        var config = _profileData.GetConfig(position);
 
-            IconPathTextBox.Text = config.IconPath;
+        IconPathTextBox.Text = config.IconPath;
 
-            ActionsTextBox.TextChanged -= OnActionsTextChanged;
-            ActionsTextBox.Text = config.ActionType == "shortcut"
-                ? config.Actions.Replace(", ", " + ")
-                : config.Actions;
-            ActionsTextBox.TextChanged += OnActionsTextChanged;
+        ActionsTextBox.TextChanged -= OnActionsTextChanged;
+        ActionsTextBox.Text = config.ActionType == "shortcut"
+            ? config.Actions.Replace(", ", " + ")
+            : config.Actions;
+        ActionsTextBox.TextChanged += OnActionsTextChanged;
 
-            ActionTypeComboBox.SelectionChanged -= OnActionTypeChanged;
-            ActionTypeComboBox.SelectedIndex = config.ActionType == "launch" ? 1 : 0;
-            UpdateActionHint(config.ActionType);
-            ActionTypeComboBox.SelectionChanged += OnActionTypeChanged;
-        }
+        ActionTypeComboBox.SelectionChanged -= OnActionTypeChanged;
+        ActionTypeComboBox.SelectedIndex = config.ActionType == "launch" ? 1 : 0;
+        UpdateActionHint(config.ActionType);
+        ActionTypeComboBox.SelectionChanged += OnActionTypeChanged;
     }
 
     private void OnActionTypeChanged(object? sender, SelectionChangedEventArgs e)
@@ -124,44 +108,6 @@ public partial class MainWindow : Window
             _profileData.UpdateConfig(_currentSelectedPosition, c => c.Actions = tb.Text ?? "");
             TriggerAutoSync();
         }
-    }
-
-    private void UpdateDeckVisuals()
-    {
-        Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            foreach (var kvp in _deckButtons)
-            {
-                string pos = kvp.Key;
-                Button btn = kvp.Value;
-                var config = _profileData.GetConfig(pos);
-
-                if (!string.IsNullOrEmpty(config.IconFullPath) && File.Exists(config.IconFullPath))
-                {
-                    var bitmap = ImageConverter.DecodeRgb565RawToBitmap(config.IconFullPath);
-                    if (bitmap != null)
-                    {
-                        var deckImage = new Avalonia.Controls.Image
-                        {
-                            Source = bitmap,
-                            Stretch = Stretch.UniformToFill
-                        };
-                        
-                        RenderOptions.SetBitmapInterpolationMode(deckImage, Avalonia.Media.Imaging.BitmapInterpolationMode.HighQuality);
-
-                        btn.Content = new Avalonia.Controls.Border
-                        {
-                            CornerRadius = new Avalonia.CornerRadius(4),
-                            ClipToBounds = true,
-                            Child = deckImage
-                        };
-                        continue;
-                    }
-                }
-
-                btn.Content = _defaultButtonTexts[pos];
-            }
-        });
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)

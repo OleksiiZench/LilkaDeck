@@ -4,6 +4,7 @@ using Avalonia.Threading;
 using LilkaDeckApp.Domain;
 using LilkaDeckApp.Profiles;
 using LilkaDeckApp.ViewModels;
+using LilkaDeckApp.Converters;
 
 namespace LilkaDeckApp;
 
@@ -19,7 +20,9 @@ public partial class MainWindow
         var connection = new ConnectionViewModel();
         var profile = new ProfileViewModel(
             _comService, new ProfileLoader(_comService, _profileData.Caches), activity, connection, HandleError);
-        _viewModel = new MainViewModel(activity, connection, profile);
+        var deck = new DeckViewModel();
+        _viewModel = new MainViewModel(activity, connection, profile, deck);
+        deck.Selected += position => ShowEditor(position.ToWireName());
 
         profile.NameEdited += TriggerAutoSync;
         profile.ColorEdited += hex =>
@@ -47,13 +50,16 @@ public partial class MainWindow
         if (document != null)
         {
             _profileData.ShowProfile(profileId, document);
-            UpdateDeckVisuals();
+            RefreshDeck();
         }
 
-        if (!string.IsNullOrEmpty(_currentSelectedPosition))
-        {
-            OnDeckButtonClicked(new Avalonia.Controls.Button { Tag = _currentSelectedPosition }, new RoutedEventArgs());
-        }
+        if (_viewModel.Deck.SelectedPosition is { } selected) ShowEditor(selected.ToWireName());
+    }
+
+    private void RefreshDeck()
+    {
+        _viewModel.Deck.Refresh(position => _profileData.GetConfig(position.ToWireName()).IconFullPath);
+        IconBitmapConverter.Instance.Retain(_viewModel.Deck.IconFilePaths);
     }
 
     // Safe to call from any thread: the log is only touched on the UI thread.

@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using LilkaDeckApp.Profiles;
+using LilkaDeckApp.Domain;
 
 namespace LilkaDeckApp;
 
@@ -49,10 +50,8 @@ public partial class MainWindow
         Button? targetButton = targetControl.FindAncestorOfType<Button>(includeSelf: true);
         if (targetButton?.Tag is not string position) return;
 
-        if (_currentSelectedPosition != position)
-        {
-            OnDeckButtonClicked(targetButton, new RoutedEventArgs());
-        }
+        if (!DeckPositions.TryParse(position, out var target)) return;
+        if (_currentSelectedPosition != position) _viewModel.Deck.Select(target);
 
         string? inputPath = files[0].TryGetLocalPath() ?? files[0].Path.LocalPath;
         if (string.IsNullOrEmpty(inputPath)) return;
@@ -99,7 +98,7 @@ public partial class MainWindow
             c.NeedsUpload = true;
         });
 
-        UpdateDeckVisuals();
+        RefreshDeck();
 
         await AutoSync.SyncNowAsync();
     }

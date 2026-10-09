@@ -8,7 +8,7 @@ public partial class MainWindow
 {
     private LaunchHandler? _launchHandler;
 
-    private LaunchHandler Launcher => _launchHandler ??= new LaunchHandler(new ShellTargetLauncher());
+    private LaunchHandler AppLauncher => _launchHandler ??= new LaunchHandler(new ShellTargetLauncher());
 
     private void OnActionsTextBoxKeyDown(object? sender, Avalonia.Input.KeyEventArgs e)
     {
@@ -46,7 +46,7 @@ public partial class MainWindow
     {
         Dispatcher.UIThread.Post(() =>
         {
-            if (!Launcher.TryLaunch(target, out string? error))
+            if (!AppLauncher.TryLaunch(target, out string? error))
             {
                 AppLog($"Launch error: {error}", true);
             }
