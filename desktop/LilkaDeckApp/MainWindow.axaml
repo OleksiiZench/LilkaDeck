@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="using:LilkaDeckApp.Converters"
         x:Class="LilkaDeckApp.MainWindow"
         xmlns:vm="using:LilkaDeckApp.ViewModels"
         x:DataType="vm:MainViewModel"
@@ -47,13 +48,13 @@
                 <!-- Profile Navigation Header (Carousel controls) -->
                 <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto" Margin="0,0,0,20" VerticalAlignment="Center">
                     <!-- Previous Profile Button -->
-                    <Button x:Name="BtnPrevProfile" Grid.Column="0" Content="◀" FontSize="20" Background="Transparent" Foreground="White" BorderThickness="0" Click="OnPrevProfileClicked"/>
+                    <Button x:Name="BtnPrevProfile" Grid.Column="0" Content="◀" FontSize="20" Background="Transparent" Foreground="White" BorderThickness="0" Command="{Binding Profile.PreviousCommand}"/>
                     
                     <!-- Active Profile Title Display -->
-                    <TextBlock x:Name="ActiveProfileTitle" Grid.Column="1" Text="Профіль 0" FontSize="24" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="ActiveProfileTitle" Grid.Column="1" Text="{Binding Profile.Title}" FontSize="24" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     
                     <!-- Next Profile Button -->
-                    <Button x:Name="BtnNextProfile" Grid.Column="2" Content="▶" FontSize="20" Background="Transparent" Foreground="White" BorderThickness="0" Click="OnNextProfileClicked"/>
+                    <Button x:Name="BtnNextProfile" Grid.Column="2" Content="▶" FontSize="20" Background="Transparent" Foreground="White" BorderThickness="0" Command="{Binding Profile.NextCommand}"/>
                 </Grid>
 
                 <Viewbox Grid.Row="1" Stretch="Uniform" Margin="40" MaxWidth="750" MaxHeight="400">
@@ -97,11 +98,11 @@
                 <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto, Auto">
                     <!-- Custom Profile Name Input -->
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Назва:" VerticalAlignment="Center" Margin="0,0,10,10"/>
-                    <TextBox x:Name="ProfileNameTextBox" Grid.Row="0" Grid.Column="1" Text="Main Deck" MaxLength="15" PlaceholderText="До 15 символів" Margin="0,0,0,10" TextChanged="OnProfileNameChanged"/>
+                    <TextBox x:Name="ProfileNameTextBox" Grid.Row="0" Grid.Column="1" MaxLength="15" PlaceholderText="До 15 символів" Margin="0,0,0,10" Text="{Binding Profile.Name}"/>
                     
                     <!-- Color picker for active button feedback (Triggers Live Preview via ESP32 RAM) -->
                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Колір відгуку:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <ColorPicker x:Name="ActiveColorPicker" Grid.Row="1" Grid.Column="1" Color="#00FFFF" HorizontalAlignment="Left" ColorChanged="OnActiveColorChanged"/>
+                    <ColorPicker x:Name="ActiveColorPicker" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Left" Color="{Binding Profile.ActiveColor, Converter={x:Static conv:HexColorConverter.Instance}}"/>
                 </Grid>
 
                 <Separator Background="#555" Margin="0,5"/>
@@ -165,13 +166,13 @@
                     <Button x:Name="AddProfileButton" Grid.Column="1" Content="+" Width="32" Height="32" 
                             HorizontalContentAlignment="Center" VerticalContentAlignment="Center" 
                             Background="#4CAF50" Foreground="White" FontWeight="Bold" 
-                            Click="OnAddProfileClicked" Margin="0,0,5,0" IsEnabled="False"/>
+                            Margin="0,0,5,0" Command="{Binding Profile.AddCommand}"/>
                     
                     <!-- Delete Current Profile Button (✕) -->
                     <Button x:Name="DeleteProfileButton" Grid.Column="2" Content="✕" Width="32" Height="32" 
                             HorizontalContentAlignment="Center" VerticalContentAlignment="Center" 
                             Background="#D32F2F" Foreground="White" FontWeight="Bold" 
-                            Click="OnDeleteProfileClicked" IsEnabled="False"/>
+                            Command="{Binding Profile.DeleteCommand}"/>
                 </Grid>
 
             </StackPanel>

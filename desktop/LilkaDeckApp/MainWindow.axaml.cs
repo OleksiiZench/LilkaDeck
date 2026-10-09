@@ -23,8 +23,6 @@ namespace LilkaDeckApp;
 public partial class MainWindow : Window
 {
     private string _currentSelectedPosition = "";
-    private bool _isLoadingProfile = false;
-    private string _lastColor = "";
     private readonly LilkaCommunicationService _comService;
     private readonly ProfileDataService _profileData;
     private Dictionary<string, Button> _deckButtons;
@@ -40,7 +38,6 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        InitializeShell();
 
         AddHandler(DragDrop.DropEvent, OnDrop);
 
@@ -53,6 +50,8 @@ public partial class MainWindow : Window
         _profileData = new ProfileDataService();
         _comService = new LilkaCommunicationService();
 
+        InitializeShell();
+
         _comService.OnConnected += HandleConnected;
         _comService.OnDisconnected += HandleDisconnected;
         _comService.OnExecuteRequested += HandleExecuteRequest;
@@ -60,27 +59,6 @@ public partial class MainWindow : Window
         _comService.OnError += HandleError;
 
         _comService.StartAutoScanner();
-    }
-
-    // --- UI EVENT HANDLERS ---
-
-    private void OnProfileNameChanged(object? sender, TextChangedEventArgs e)
-    {
-        if (_isLoadingProfile || !ProfileNameTextBox.IsFocused) return;
-        TriggerAutoSync();
-    }
-
-    private void OnActiveColorChanged(object? sender, ColorChangedEventArgs e)
-    {
-        if (_isLoadingProfile) return;
-
-        string hexColor = $"#{e.NewColor.R:X2}{e.NewColor.G:X2}{e.NewColor.B:X2}";
-
-        if (hexColor == _lastColor) return;
-        _lastColor = hexColor;
-
-        _comService.SendColorPreview(hexColor);
-        TriggerAutoSync();
     }
 
     private void OnDeckButtonClicked(object? sender, RoutedEventArgs e)
@@ -139,7 +117,7 @@ public partial class MainWindow : Window
 
     private void OnActionsTextChanged(object? sender, TextChangedEventArgs e)
     {
-        if (_isLoadingProfile || !ActionsTextBox.IsFocused) return;
+        if (_viewModel.Profile.IsLoading || !ActionsTextBox.IsFocused) return;
 
         if (!string.IsNullOrEmpty(_currentSelectedPosition) && sender is TextBox tb)
         {
