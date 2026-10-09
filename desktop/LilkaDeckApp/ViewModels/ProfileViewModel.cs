@@ -4,6 +4,7 @@ using System.Windows.Input;
 using LilkaDeckApp.Domain;
 using LilkaDeckApp.Mvvm;
 using LilkaDeckApp.Profiles;
+using LilkaDeckApp.Sync;
 
 namespace LilkaDeckApp.ViewModels;
 
@@ -11,7 +12,7 @@ namespace LilkaDeckApp.ViewModels;
 /// The profile screen: which profile is open, its name and color, and the commands to move between,
 /// add and delete profiles. Edits made by the user are announced by events; loading a profile is not an edit.
 /// </summary>
-public sealed class ProfileViewModel : ObservableObject
+public sealed class ProfileViewModel : ObservableObject, IOpenProfile
 {
     private readonly IProfileDevice _device;
     private readonly ProfileLoader _loader;

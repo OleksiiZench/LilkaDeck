@@ -24,7 +24,7 @@ public sealed record DeviceTimeouts
 }
 
 /// <summary>The operations the device supports, expressed as typed calls.</summary>
-public sealed class LilkaDeviceClient
+public sealed class LilkaDeviceClient : ILilkaDevice
 {
     // A color preview is not worth waiting for: if the device is busy, the next one replaces it.
     private static readonly TimeSpan ColorPreviewWait = TimeSpan.FromMilliseconds(50);
