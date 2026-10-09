@@ -28,13 +28,13 @@ public partial class MainWindow
         _viewModel.Activity.Progress = 0;
         AppLog("Автосинхронізація...");
 
-        var payload = _profileData.BuildSyncPayload(profile.Name, profile.ActiveColor);
+        var payload = _session.BuildSyncPayload(profile.Name, profile.ActiveColor);
         var progress = new Progress<int>(percent => _viewModel.Activity.Progress = percent);
         var status = new Progress<string>(message => AppLog(message));
 
-        await _comService.SyncDataAsync(profile.CurrentProfileId ?? 0, payload.jsonBytes, payload.filesToSend, progress, status);
+        await _comService.SyncDataAsync(profile.CurrentProfileId ?? 0, payload.ConfigJson, payload.IconFiles, progress, status);
         AppLog("Збережено на пристрій!");
 
-        _profileData.MarkUploaded(payload.filesToSend);
+        _session.MarkUploaded(payload.IconFiles);
     }
 }

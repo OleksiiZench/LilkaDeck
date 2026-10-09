@@ -1,37 +1,41 @@
+using System;
+using System.IO;
 using Avalonia.Controls;
 using Avalonia.Input;
+using LilkaDeckApp.Profiles;
 using LilkaDeckApp.Services;
-
 
 namespace LilkaDeckApp;
 
 public partial class MainWindow : Window
 {
     private readonly LilkaCommunicationService _comService;
-    private readonly ProfileDataService _profileData;
-
+    private readonly DeckEditSession _session;
+    
     public bool IsRealClose { get; set; } = false;
-
+    
     public MainWindow()
     {
         InitializeComponent();
-
+        
         AddHandler(DragDrop.DropEvent, OnDrop);
-
-        _profileData = new ProfileDataService();
+        
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var caches = new ProfileCaches(Path.Combine(appData, "LilkaDeck", "Cache"));
+        _session = new DeckEditSession(caches);
         _comService = new LilkaCommunicationService();
-
-        InitializeShell();
-
+        
+        InitializeShell(caches);
+        
         _comService.OnConnected += HandleConnected;
         _comService.OnDisconnected += HandleDisconnected;
         _comService.OnExecuteRequested += HandleExecuteRequest;
         _comService.OnLogMessage += HandleLogMessage;
         _comService.OnError += HandleError;
-
+        
         _comService.StartAutoScanner();
     }
-
+    
     protected override void OnClosing(WindowClosingEventArgs e)
     {
         if (!IsRealClose)

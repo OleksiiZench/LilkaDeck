@@ -16,17 +16,17 @@ public partial class MainWindow
 {
     private MainViewModel _viewModel = null!;
 
-    // Call once from the constructor, after _comService and _profileData have been created.
-    private void InitializeShell()
+    // Call once from the constructor, after _comService and _session have been created.
+    private void InitializeShell(ProfileCaches caches)
     {
         var activity = new ActivityViewModel();
         var connection = new ConnectionViewModel();
         var profile = new ProfileViewModel(
-            _comService, new ProfileLoader(_comService, _profileData.Caches), activity, connection, HandleError);
+            _comService, new ProfileLoader(_comService, caches), activity, connection, HandleError);
         var deck = new DeckViewModel();
-        var editor = new ButtonEditorViewModel(_profileData, () => profile.IsLoading);
+        var editor = new ButtonEditorViewModel(_session, () => profile.IsLoading);
         var icons = new IconImportViewModel(
-            _profileData, _profileData, new AvaloniaFilePicker(this),
+            _session, _session, new AvaloniaFilePicker(this),
             new GalleryFolder(Path.Combine(AppContext.BaseDirectory, "assets", "standard_icons")),
             deck, activity, () => AutoSync.SyncNowAsync());
         _viewModel = new MainViewModel(activity, connection, profile, deck, editor, icons);
@@ -54,7 +54,7 @@ public partial class MainWindow
             TriggerAutoSync();
         };
         profile.Loaded += OnProfileLoaded;
-        profile.Removed += () => _profileData.ClearState();
+        profile.Removed += () => _session.Clear();
 
         DataContext = _viewModel;
 
@@ -72,7 +72,7 @@ public partial class MainWindow
     {
         if (document != null)
         {
-            _profileData.ShowProfile(profileId, document);
+            _session.ShowProfile(profileId, document);
             RefreshDeck();
         }
 
@@ -81,7 +81,7 @@ public partial class MainWindow
 
     private void RefreshDeck()
     {
-        _viewModel.Deck.Refresh(position => _profileData.GetConfig(position.ToWireName()).IconFullPath);
+        _viewModel.Deck.Refresh(_session.GetIconFilePath);
         IconBitmapConverter.Instance.Retain(_viewModel.Deck.IconFilePaths);
     }
 
