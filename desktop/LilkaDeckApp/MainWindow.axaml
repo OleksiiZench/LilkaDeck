@@ -109,50 +109,53 @@
                 <Separator Background="#555" Margin="0,5"/>
                 
                 <!-- 3. Dynamic Button Settings Panel (Enabled only when a virtual button is clicked) -->
-                <StackPanel x:Name="ButtonSettingsPanel" Spacing="12" IsEnabled="False">
-                    <TextBlock x:Name="SelectedButtonLabel" Text="Оберіть кнопку..." Foreground="#4CAF50" FontSize="16" FontWeight="SemiBold"/>
-                    
-                    <!-- Icon Selection -->
-                    <TextBlock Text="Іконка (PNG, JPG):"/>
-                    <Grid ColumnDefinitions="*, Auto, Auto">
-                        <TextBox x:Name="IconPathTextBox" Grid.Column="0" IsReadOnly="True" PlaceholderText="Шлях до файлу..." Margin="0,0,10,0"/>
-                        
-                        <!-- Gallery Button -->
-                        <Button x:Name="GalleryButton" Grid.Column="1" Content="Галерея" Click="OnGalleryClicked" Margin="0,0,5,0">
-                            <Button.Flyout>
-                                <Flyout Placement="Bottom">
-                                    <ScrollViewer MaxHeight="300" MaxWidth="300">
-                                        <WrapPanel x:Name="GalleryWrapPanel" ItemWidth="64" ItemHeight="64" MaxWidth="280">
-                                            <!-- Standard icons will be dynamically injected here via C# -->
-                                        </WrapPanel>
-                                    </ScrollViewer>
-                                </Flyout>
-                            </Button.Flyout>
-                        </Button>
-                        
-                        <Button Grid.Column="2" Content="Огляд..." Click="OnBrowseIconClicked"/>
-                    </Grid>
-
-                    <!-- Action Type Dropdown (Shortcut vs Launch) -->
-                    <TextBlock Text="Тип дії:" Margin="0,5,0,0"/>
-                    <ComboBox x:Name="ActionTypeComboBox" HorizontalAlignment="Stretch" SelectionChanged="OnActionTypeChanged">
-                        <ComboBoxItem Content="Гарячі клавіші (Shortcut)" Tag="shortcut"/>
-                        <ComboBoxItem Content="Запуск програми / URL (Launch)" Tag="launch"/>
-                    </ComboBox>
-
-                    <!-- Action Payload Input -->
-                    <TextBlock x:Name="ActionHintTextBlock" Text="Дії (через кому):" Margin="0,5,0,0"/>
-                    <TextBox x:Name="ActionsTextBox" PlaceholderText="CTRL, ALT, T" TextChanged="OnActionsTextChanged" KeyDown="OnActionsTextBoxKeyDown"/>
-                    <TextBlock Text="Або оберіть медіа-дію:" Foreground="#888" FontSize="12" Margin="0,5,0,0"/>
-                        <WrapPanel x:Name="MediaButtonsPanel">
-                            <Button Content="⏯ Play/Pause" Tag="MEDIA_PLAY_PAUSE" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
-                            <Button Content="⏭ Next" Tag="MEDIA_NEXT" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
-                            <Button Content="⏮ Prev" Tag="MEDIA_PREV" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
-                            <Button Content="🔊 Vol+" Tag="MEDIA_VOL_UP" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
-                            <Button Content="🔉 Vol-" Tag="MEDIA_VOL_DOWN" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
-                            <Button Content="🔇 Mute" Tag="MEDIA_MUTE" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
-                            <Button Content="☀ Brightness+" Tag="MEDIA_BRIGHTNESS_UP" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
-                            <Button Content="🔅 Brightness-" Tag="MEDIA_BRIGHTNESS_DOWN" Click="OnMediaButtonClicked" Margin="0,0,4,4"/>
+                <StackPanel x:Name="ButtonSettingsPanel" Spacing="12" IsEnabled="{Binding Editor.HasSelection}">
+    <TextBlock x:Name="SelectedButtonLabel" Text="{Binding Editor.Header}" Foreground="#4CAF50" FontSize="16" FontWeight="SemiBold"/>
+    
+    <TextBlock Text="Іконка (PNG, JPG):"/>
+    <Grid ColumnDefinitions="*, Auto, Auto">
+    <TextBox x:Name="IconPathTextBox" Grid.Column="0" IsReadOnly="True" Text="{Binding Editor.IconFileName, Mode=OneWay}" PlaceholderText="Шлях до файлу..." Margin="0,0,10,0"/>
+    
+    <!-- Gallery Button -->
+    <Button x:Name="GalleryButton" Grid.Column="1" Content="Галерея" Click="OnGalleryClicked" Margin="0,0,5,0">
+        <Button.Flyout>
+            <Flyout Placement="Bottom">
+                <ScrollViewer MaxHeight="300" MaxWidth="300">
+                    <WrapPanel x:Name="GalleryWrapPanel" ItemWidth="64" ItemHeight="64" MaxWidth="280">
+                        <!-- Standard icons will be dynamically injected here via C# -->
+                    </WrapPanel>
+                </ScrollViewer>
+            </Flyout>
+        </Button.Flyout>
+    </Button>
+    
+    <Button Grid.Column="2" Content="Огляд..." Click="OnBrowseIconClicked"/>
+</Grid>
+    
+    <TextBlock Text="Тип дії:" Margin="0,5,0,0"/>
+    <ComboBox x:Name="ActionTypeComboBox" HorizontalAlignment="Stretch"
+              ItemsSource="{Binding Editor.ActionTypeOptions}" SelectedItem="{Binding Editor.SelectedActionType}">
+        <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:ActionTypeOption">
+                <TextBlock Text="{Binding Title}"/>
+            </DataTemplate>
+        </ComboBox.ItemTemplate>
+    </ComboBox>
+    
+    <TextBlock x:Name="ActionHintTextBlock" Text="{Binding Editor.ActionHint}" Margin="0,5,0,0"/>
+    <TextBox x:Name="ActionsTextBox" Text="{Binding Editor.ActionText}"
+             PlaceholderText="{Binding Editor.ActionPlaceholder}" IsReadOnly="{Binding Editor.IsActionReadOnly}"
+             KeyDown="OnActionsTextBoxKeyDown"/>
+    <TextBlock Text="Або оберіть медіа-дію:" IsVisible="{Binding Editor.AreMediaButtonsVisible}" Foreground="#888" FontSize="12" Margin="0,5,0,0"/>
+    <WrapPanel x:Name="MediaButtonsPanel" IsVisible="{Binding Editor.AreMediaButtonsVisible}">
+                            <Button Content="⏯ Play/Pause" Command="{Binding Editor.MediaCommand}" CommandParameter="MEDIA_PLAY_PAUSE" Margin="0,0,4,4"/>
+                            <Button Content="⏭ Next" Command="{Binding Editor.MediaCommand}" CommandParameter="MEDIA_NEXT" Margin="0,0,4,4"/>
+                            <Button Content="⏮ Prev" Command="{Binding Editor.MediaCommand}" CommandParameter="MEDIA_PREV" Margin="0,0,4,4"/>
+                            <Button Content="🔊 Vol+" Command="{Binding Editor.MediaCommand}" CommandParameter="MEDIA_VOL_UP" Margin="0,0,4,4"/>
+                            <Button Content="🔉 Vol-" Command="{Binding Editor.MediaCommand}" CommandParameter="MEDIA_VOL_DOWN" Margin="0,0,4,4"/>
+                            <Button Content="🔇 Mute" Command="{Binding Editor.MediaCommand}" CommandParameter="MEDIA_MUTE" Margin="0,0,4,4"/>
+                            <Button Content="☀ Brightness+" Command="{Binding Editor.MediaCommand}" CommandParameter="MEDIA_BRIGHTNESS_UP" Margin="0,0,4,4"/>
+                            <Button Content="🔅 Brightness-" Command="{Binding Editor.MediaCommand}" CommandParameter="MEDIA_BRIGHTNESS_DOWN" Margin="0,0,4,4"/>
                         </WrapPanel>
                 </StackPanel>
 

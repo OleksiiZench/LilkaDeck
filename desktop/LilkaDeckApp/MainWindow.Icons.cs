@@ -90,7 +90,7 @@ public partial class MainWindow
             return;
         }
 
-        IconPathTextBox.Text = icon.FileName;
+        _viewModel.Editor.ShowImportedIcon(icon.FileName);
         _profileData.UpdateConfig(position, c =>
         {
             c.IconPath = icon.FileName;

@@ -21,8 +21,10 @@ public partial class MainWindow
         var profile = new ProfileViewModel(
             _comService, new ProfileLoader(_comService, _profileData.Caches), activity, connection, HandleError);
         var deck = new DeckViewModel();
-        _viewModel = new MainViewModel(activity, connection, profile, deck);
-        deck.Selected += position => ShowEditor(position.ToWireName());
+var editor = new ButtonEditorViewModel(_profileData, () => profile.IsLoading);
+_viewModel = new MainViewModel(activity, connection, profile, deck, editor);
+deck.Selected += editor.Show;
+editor.Edited += TriggerAutoSync;
 
         profile.NameEdited += TriggerAutoSync;
         profile.ColorEdited += hex =>
@@ -53,7 +55,7 @@ public partial class MainWindow
             RefreshDeck();
         }
 
-        if (_viewModel.Deck.SelectedPosition is { } selected) ShowEditor(selected.ToWireName());
+        if (_viewModel.Deck.SelectedPosition is { } selected) _viewModel.Editor.Show(selected);
     }
 
     private void RefreshDeck()

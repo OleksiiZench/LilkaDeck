@@ -1,19 +1,12 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Platform.Storage;
 using Avalonia.Media;
-using Avalonia.Threading;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform;
-using System.Reflection;
 using System.Linq;
 using System;
 using System.IO;
-using System.Diagnostics;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using Avalonia.VisualTree;
+using LilkaDeckApp.Domain;
 
 using LilkaDeckApp.Services;
 
@@ -22,9 +15,11 @@ namespace LilkaDeckApp;
 
 public partial class MainWindow : Window
 {
-    private string _currentSelectedPosition = "";
     private readonly LilkaCommunicationService _comService;
     private readonly ProfileDataService _profileData;
+
+    // Temporary: MainWindow.Icons.cs still works with the position as a string.
+private string _currentSelectedPosition => _viewModel.Deck.SelectedPosition?.ToWireName() ?? "";
 
     public bool IsRealClose { get; set; } = false;
 
@@ -46,69 +41,7 @@ public partial class MainWindow : Window
         _comService.OnError += HandleError;
 
         _comService.StartAutoScanner();
-    }
-
-    private void ShowEditor(string position)
-    {
-        _currentSelectedPosition = position;
-        ButtonSettingsPanel.IsEnabled = true;
-        SelectedButtonLabel.Text = $"Редагування: {position}";
-
-        var config = _profileData.GetConfig(position);
-
-        IconPathTextBox.Text = config.IconPath;
-
-        ActionsTextBox.TextChanged -= OnActionsTextChanged;
-        ActionsTextBox.Text = config.ActionType == "shortcut"
-            ? config.Actions.Replace(", ", " + ")
-            : config.Actions;
-        ActionsTextBox.TextChanged += OnActionsTextChanged;
-
-        ActionTypeComboBox.SelectionChanged -= OnActionTypeChanged;
-        ActionTypeComboBox.SelectedIndex = config.ActionType == "launch" ? 1 : 0;
-        UpdateActionHint(config.ActionType);
-        ActionTypeComboBox.SelectionChanged += OnActionTypeChanged;
-    }
-
-    private void OnActionTypeChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (string.IsNullOrEmpty(_currentSelectedPosition)) return;
-        if (ActionTypeComboBox.SelectedItem is ComboBoxItem item && item.Tag is string type)
-        {
-            _profileData.UpdateConfig(_currentSelectedPosition, c => c.ActionType = type);
-            UpdateActionHint(type);
-            TriggerAutoSync();
-        }
-    }
-
-    private void UpdateActionHint(string type)
-    {
-        if (type == "shortcut")
-        {
-            ActionHintTextBlock.Text = "Комбінація клавіш або медіа-дія:";
-            ActionsTextBox.PlaceholderText = "Клікніть і натисніть комбінацію...";
-            ActionsTextBox.IsReadOnly = true;
-            MediaButtonsPanel.IsVisible = true;
-        }
-        else
-        {
-            ActionHintTextBlock.Text = "Шлях до програми або URL:";
-            ActionsTextBox.PlaceholderText = @"C:\Apps\Discord.exe або https://youtube.com";
-            ActionsTextBox.IsReadOnly = false;
-            MediaButtonsPanel.IsVisible = false;
-        }
-    }
-
-    private void OnActionsTextChanged(object? sender, TextChangedEventArgs e)
-    {
-        if (_viewModel.Profile.IsLoading || !ActionsTextBox.IsFocused) return;
-
-        if (!string.IsNullOrEmpty(_currentSelectedPosition) && sender is TextBox tb)
-        {
-            _profileData.UpdateConfig(_currentSelectedPosition, c => c.Actions = tb.Text ?? "");
-            TriggerAutoSync();
-        }
-    }
+    }   
 
     protected override void OnClosing(WindowClosingEventArgs e)
     {
@@ -185,15 +118,5 @@ public partial class MainWindow : Window
         {
             AppLog($"Помилка завантаження галереї: {ex.Message}", true);
         }
-    }
-
-    private void OnMediaButtonClicked(object? sender, RoutedEventArgs e)
-    {
-        if (string.IsNullOrEmpty(_currentSelectedPosition)) return;
-        if (sender is not Button btn || btn.Tag is not string mediaToken) return;
-
-        ActionsTextBox.Text = mediaToken;
-        _profileData.UpdateConfig(_currentSelectedPosition, c => c.Actions = mediaToken);
-        TriggerAutoSync();
     }
 }
