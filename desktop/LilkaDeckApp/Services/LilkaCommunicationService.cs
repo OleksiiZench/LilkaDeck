@@ -15,7 +15,7 @@ namespace LilkaDeckApp.Services;
 /// Compatibility facade that keeps the API and the messages MainWindow was written against.
 /// It can be deleted once the UI works with LilkaDeviceClient and words its own messages.
 /// </summary>
-public sealed class LilkaCommunicationService : IDisposable, IProfileFileSource
+public sealed class LilkaCommunicationService : IDisposable, IProfileFileSource, IProfileDevice
 {
     private readonly ConnectionMonitor _monitor;
     private readonly DeviceTimeouts? _timeouts;
@@ -80,6 +80,9 @@ public sealed class LilkaCommunicationService : IDisposable, IProfileFileSource
         var ids = await QueryAsync<IReadOnlyList<int>>(c => c.GetProfileIdsAsync(default), Array.Empty<int>());
         return ids.OrderBy(id => id).Select(id => id.ToString(CultureInfo.InvariantCulture)).ToArray();
     }
+
+    async Task<IReadOnlyList<int>> IProfileDevice.GetProfileIdsAsync() =>
+        (await GetProfilesListAsync()).Select(text => int.TryParse(text, out int id) ? id : -1).Where(id => id >= 0).ToList();
 
     public Task<int?> CreateProfileAsync() =>
         QueryAsync<int?>(async c => await c.CreateProfileAsync(default), null);
