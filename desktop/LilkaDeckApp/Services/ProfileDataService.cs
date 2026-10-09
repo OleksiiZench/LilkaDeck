@@ -12,7 +12,7 @@ namespace LilkaDeckApp.Services;
 /// Compatibility facade that keeps the string-based API MainWindow uses.
 /// It can be deleted once MainWindow works with DeckState through view models.
 /// </summary>
-public class ProfileDataService
+public class ProfileDataService : IButtonStore
 {
     private readonly DeckState _state = new();
 
@@ -45,6 +45,18 @@ public class ProfileDataService
         _actionText[parsed] = config.Actions;
         _state.Update(parsed, _ => FromConfig(config));
     }
+
+    public ButtonEditState GetButton(DeckPosition position)
+    {
+        var config = ToConfig(position);
+        return new ButtonEditState(config.IconPath, ActionTypes.Parse(config.ActionType), config.Actions);
+    }
+
+    public void SetActionType(DeckPosition position, ActionType type) =>
+        UpdateConfig(position.ToWireName(), config => config.ActionType = type.ToWireName());
+
+    public void SetActionText(DeckPosition position, string text) =>
+        UpdateConfig(position.ToWireName(), config => config.Actions = text);
 
     public (byte[] jsonBytes, Dictionary<string, string> filesToSend) BuildSyncPayload(string profileName, string activeColorHex)
     {
