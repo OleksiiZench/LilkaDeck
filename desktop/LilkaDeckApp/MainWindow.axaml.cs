@@ -1,15 +1,17 @@
 using System;
 using System.IO;
+using System.IO.Ports;
 using Avalonia.Controls;
 using Avalonia.Input;
+using LilkaDeckApp.Device;
 using LilkaDeckApp.Profiles;
-using LilkaDeckApp.Services;
+using LilkaDeckApp.Transport;
 
 namespace LilkaDeckApp;
 
 public partial class MainWindow : Window
 {
-    private readonly LilkaCommunicationService _comService;
+    private readonly DeviceConnection _device;
     private readonly DeckEditSession _session;
     
     public bool IsRealClose { get; set; } = false;
@@ -23,17 +25,17 @@ public partial class MainWindow : Window
         string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var caches = new ProfileCaches(Path.Combine(appData, "LilkaDeck", "Cache"));
         _session = new DeckEditSession(caches);
-        _comService = new LilkaCommunicationService();
+        _device = new DeviceConnection(new ConnectionMonitor(SerialPort.GetPortNames, port => new SerialPortTransport(port)));
         
         InitializeShell(caches);
         
-        _comService.OnConnected += HandleConnected;
-        _comService.OnDisconnected += HandleDisconnected;
-        _comService.OnExecuteRequested += HandleExecuteRequest;
-        _comService.OnLogMessage += HandleLogMessage;
-        _comService.OnError += HandleError;
+        _device.Connected += HandleConnected;
+        _device.Disconnected += HandleDisconnected;
+        _device.ExecuteRequested += HandleExecuteRequest;
+        _device.LogReceived += HandleLogMessage;
+        _device.Failed += HandleError;
         
-        _comService.StartAutoScanner();
+        _device.Start();
     }
     
     protected override void OnClosing(WindowClosingEventArgs e)
