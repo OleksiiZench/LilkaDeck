@@ -10,18 +10,21 @@ public sealed class MainViewModel : ObservableObject
         ConnectionViewModel connection,
         ProfileViewModel profile,
         DeckViewModel deck,
-        ButtonEditorViewModel editor)
+        ButtonEditorViewModel editor,
+        IconImportViewModel icons)
     {
         Activity = activity;
         Connection = connection;
         Profile = profile;
         Deck = deck;
         Editor = editor;
+        Icons = icons;
     }
-
+    
     public ActivityViewModel Activity { get; }
     public ConnectionViewModel Connection { get; }
     public ProfileViewModel Profile { get; }
     public DeckViewModel Deck { get; }
     public ButtonEditorViewModel Editor { get; }
+    public IconImportViewModel Icons { get; }
 }

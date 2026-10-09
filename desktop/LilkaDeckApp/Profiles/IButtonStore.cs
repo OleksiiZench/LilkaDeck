@@ -9,8 +9,11 @@ public sealed record ButtonEditState(string IconFileName, ActionType ActionType,
 public interface IButtonStore
 {
     ButtonEditState GetButton(DeckPosition position);
-
+    
     void SetActionType(DeckPosition position, ActionType type);
-
+    
     void SetActionText(DeckPosition position, string text);
+    
+    /// <summary>Gives the button a freshly imported icon, which still has to be sent to the device.</summary>
+    void SetIcon(DeckPosition position, ImportedIcon icon);
 }

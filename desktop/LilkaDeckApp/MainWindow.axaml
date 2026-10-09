@@ -63,19 +63,19 @@
                           ColumnDefinitions="80, 80, 80, 60, 80, 80, 80">
                     
                         <!-- Left Directional Pad (D-Pad) Cluster -->
-                        <Button DragDrop.AllowDrop="True" Grid.Row="0" Grid.Column="1" Tag="LeftUp" Classes="deck-btn" Content="{Binding Deck.LeftUp}" Command="{Binding Deck.LeftUp.SelectCommand}"/>
-                        <Button DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="0" Tag="LeftLeft" Classes="deck-btn" Content="{Binding Deck.LeftLeft}" Command="{Binding Deck.LeftLeft.SelectCommand}"/>
-                        <Button DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="2" Tag="LeftRight" Classes="deck-btn" Content="{Binding Deck.LeftRight}" Command="{Binding Deck.LeftRight.SelectCommand}"/>
-                        <Button DragDrop.AllowDrop="True" Grid.Row="2" Grid.Column="1" Tag="LeftDown" Classes="deck-btn" Content="{Binding Deck.LeftDown}" Command="{Binding Deck.LeftDown.SelectCommand}"/>
+                        <Button DragDrop.AllowDrop="True" Grid.Row="0" Grid.Column="1" Classes="deck-btn" Content="{Binding Deck.LeftUp}" Command="{Binding Deck.LeftUp.SelectCommand}"/>
+                        <Button DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="0" Classes="deck-btn" Content="{Binding Deck.LeftLeft}" Command="{Binding Deck.LeftLeft.SelectCommand}"/>
+                        <Button DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="2" Classes="deck-btn" Content="{Binding Deck.LeftRight}" Command="{Binding Deck.LeftRight.SelectCommand}"/>
+                        <Button DragDrop.AllowDrop="True" Grid.Row="2" Grid.Column="1" Classes="deck-btn" Content="{Binding Deck.LeftDown}" Command="{Binding Deck.LeftDown.SelectCommand}"/>
                         
                         <!-- Central TFT Display Placeholder -->
                         <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="3" Background="#111" CornerRadius="10" Margin="10,0"/>
 
                         <!-- Right Action Button Cluster -->
-                        <Button DragDrop.AllowDrop="True" Grid.Row="0" Grid.Column="5" Tag="RightUp" Classes="deck-btn" Content="{Binding Deck.RightUp}" Command="{Binding Deck.RightUp.SelectCommand}"/>
-                        <Button DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="4" Tag="RightLeft" Classes="deck-btn" Content="{Binding Deck.RightLeft}" Command="{Binding Deck.RightLeft.SelectCommand}"/>
-                        <Button DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="6" Tag="RightRight" Classes="deck-btn" Content="{Binding Deck.RightRight}" Command="{Binding Deck.RightRight.SelectCommand}"/>
-                        <Button DragDrop.AllowDrop="True" Grid.Row="2" Grid.Column="5" Tag="RightDown" Classes="deck-btn" Content="{Binding Deck.RightDown}" Command="{Binding Deck.RightDown.SelectCommand}"/>
+                        <Button DragDrop.AllowDrop="True" Grid.Row="0" Grid.Column="5" Classes="deck-btn" Content="{Binding Deck.RightUp}" Command="{Binding Deck.RightUp.SelectCommand}"/>
+                        <Button DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="4" Classes="deck-btn" Content="{Binding Deck.RightLeft}" Command="{Binding Deck.RightLeft.SelectCommand}"/>
+                        <Button DragDrop.AllowDrop="True" Grid.Row="1" Grid.Column="6" Classes="deck-btn" Content="{Binding Deck.RightRight}" Command="{Binding Deck.RightRight.SelectCommand}"/>
+                        <Button DragDrop.AllowDrop="True" Grid.Row="2" Grid.Column="5" Classes="deck-btn" Content="{Binding Deck.RightDown}" Command="{Binding Deck.RightDown.SelectCommand}"/>
                         
                         </Grid>
                 </Viewbox>
@@ -116,20 +116,29 @@
     <Grid ColumnDefinitions="*, Auto, Auto">
     <TextBox x:Name="IconPathTextBox" Grid.Column="0" IsReadOnly="True" Text="{Binding Editor.IconFileName, Mode=OneWay}" PlaceholderText="Шлях до файлу..." Margin="0,0,10,0"/>
     
-    <!-- Gallery Button -->
-    <Button x:Name="GalleryButton" Grid.Column="1" Content="Галерея" Click="OnGalleryClicked" Margin="0,0,5,0">
-        <Button.Flyout>
-            <Flyout Placement="Bottom">
-                <ScrollViewer MaxHeight="300" MaxWidth="300">
-                    <WrapPanel x:Name="GalleryWrapPanel" ItemWidth="64" ItemHeight="64" MaxWidth="280">
-                        <!-- Standard icons will be dynamically injected here via C# -->
-                    </WrapPanel>
-                </ScrollViewer>
-            </Flyout>
-        </Button.Flyout>
-    </Button>
+    <Button x:Name="GalleryButton" Grid.Column="1" Content="Галерея" Command="{Binding Icons.Gallery.OpenCommand}" Margin="0,0,5,0"/>
+    <Popup PlacementTarget="{Binding #GalleryButton}" Placement="Bottom" IsLightDismissEnabled="True"
+           IsOpen="{Binding Icons.Gallery.IsOpen, Mode=TwoWay}">
+        <Border Background="#2D2D30" BorderBrush="#555" BorderThickness="1" CornerRadius="6" Padding="6">
+            <ScrollViewer MaxHeight="300" MaxWidth="300">
+                <ItemsControl ItemsSource="{Binding Icons.Gallery.Items}" MaxWidth="280">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:GalleryIconViewModel">
+                            <Button Width="60" Height="60" Margin="2" Padding="6" Background="#333" Command="{Binding SelectCommand}">
+                                <Image Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"
+                                       Source="{Binding FilePath, Converter={x:Static conv:ThumbnailBitmapConverter.Instance}}"/>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+    </Popup>
     
-    <Button Grid.Column="2" Content="Огляд..." Click="OnBrowseIconClicked"/>
+    <Button Grid.Column="2" Content="Огляд..." Command="{Binding Icons.BrowseCommand}"/>
 </Grid>
     
     <TextBlock Text="Тип дії:" Margin="0,5,0,0"/>

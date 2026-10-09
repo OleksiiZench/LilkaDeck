@@ -1,10 +1,13 @@
 using System;
+using System.IO;
+using System.Linq;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using LilkaDeckApp.Converters;
 using LilkaDeckApp.Domain;
 using LilkaDeckApp.Profiles;
+using LilkaDeckApp.Services;
 using LilkaDeckApp.ViewModels;
-using LilkaDeckApp.Converters;
 
 namespace LilkaDeckApp;
 
@@ -21,10 +24,28 @@ public partial class MainWindow
         var profile = new ProfileViewModel(
             _comService, new ProfileLoader(_comService, _profileData.Caches), activity, connection, HandleError);
         var deck = new DeckViewModel();
-var editor = new ButtonEditorViewModel(_profileData, () => profile.IsLoading);
-_viewModel = new MainViewModel(activity, connection, profile, deck, editor);
-deck.Selected += editor.Show;
-editor.Edited += TriggerAutoSync;
+        var editor = new ButtonEditorViewModel(_profileData, () => profile.IsLoading);
+        var icons = new IconImportViewModel(
+            _profileData, _profileData, new AvaloniaFilePicker(this),
+            new GalleryFolder(Path.Combine(AppContext.BaseDirectory, "assets", "standard_icons")),
+            deck, activity, () => AutoSync.SyncNowAsync());
+        _viewModel = new MainViewModel(activity, connection, profile, deck, editor, icons);
+
+        deck.Selected += editor.Show;
+        editor.Edited += TriggerAutoSync;
+
+        icons.Imported += icon =>
+        {
+            editor.ShowImportedIcon(icon.FileName);
+            RefreshDeck();
+        };
+        icons.Gallery.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(IconGalleryViewModel.Items))
+            {
+                ThumbnailBitmapConverter.Instance.Retain(icons.Gallery.Items.Select(item => item.FilePath));
+            }
+        };
 
         profile.NameEdited += TriggerAutoSync;
         profile.ColorEdited += hex =>
