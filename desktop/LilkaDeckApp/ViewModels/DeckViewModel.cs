@@ -11,19 +11,22 @@ public sealed class DeckViewModel : ObservableObject
 {
     private readonly Dictionary<DeckPosition, DeckButtonViewModel> _buttons;
     private DeckPosition? _selectedPosition;
-
+    
     public DeckViewModel()
     {
         _buttons = DeckPositions.All.ToDictionary(
             position => position,
             position => new DeckButtonViewModel(position, DefaultLabelOf(position), button => Select(button.Position)));
     }
-
+    
     /// <summary>Raised on every selection, also when the selected button is selected again.</summary>
     public event Action<DeckPosition>? Selected;
-
+    
+    /// <summary>Raised after <see cref="Refresh"/> has given every button its icon.</summary>
+    public event Action? IconsRefreshed;
+    
     public DeckPosition? SelectedPosition => _selectedPosition;
-
+    
     // One property per position, so that the layout in XAML can bind to each of them.
     public DeckButtonViewModel LeftUp => Get(DeckPosition.LeftUp);
     public DeckButtonViewModel LeftLeft => Get(DeckPosition.LeftLeft);
@@ -33,21 +36,21 @@ public sealed class DeckViewModel : ObservableObject
     public DeckButtonViewModel RightLeft => Get(DeckPosition.RightLeft);
     public DeckButtonViewModel RightRight => Get(DeckPosition.RightRight);
     public DeckButtonViewModel RightDown => Get(DeckPosition.RightDown);
-
+    
     public IEnumerable<string> IconFilePaths => _buttons.Values.Select(button => button.IconFilePath).OfType<string>();
-
+    
     public DeckButtonViewModel Get(DeckPosition position) => _buttons[position];
-
+    
     public void Select(DeckPosition position)
     {
         if (_selectedPosition is DeckPosition previous) _buttons[previous].IsSelected = false;
-
+        
         _selectedPosition = position;
         _buttons[position].IsSelected = true;
         OnPropertyChanged(nameof(SelectedPosition));
         Selected?.Invoke(position);
     }
-
+    
     /// <summary>Shows the icons of the current profile; a null or empty path means the button has no icon.</summary>
     public void Refresh(Func<DeckPosition, string?> iconFilePathOf)
     {
@@ -55,8 +58,9 @@ public sealed class DeckViewModel : ObservableObject
         {
             button.ShowIcon(iconFilePathOf(position));
         }
+        IconsRefreshed?.Invoke();
     }
-
+    
     private static string DefaultLabelOf(DeckPosition position) => position switch
     {
         DeckPosition.LeftUp => "UP",

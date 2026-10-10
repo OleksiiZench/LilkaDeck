@@ -7,7 +7,7 @@ namespace LilkaDeckApp.Device;
 /// The connection to the Lilka as the rest of the application sees it: a few events and the device that is
 /// connected at the moment. Events come from a background thread.
 /// </summary>
-public sealed class DeviceConnection : IDeviceSource, IDisposable
+public sealed class DeviceConnection : IDeviceSource, IDeviceEvents, IDisposable
 {
     private readonly ConnectionMonitor _monitor;
     private readonly DeviceTimeouts? _timeouts;
@@ -25,14 +25,8 @@ public sealed class DeviceConnection : IDeviceSource, IDisposable
     
     public event Action<string>? Connected;
     public event Action? Disconnected;
-    
-    /// <summary>The connection broke for a reason other than the device being unplugged.</summary>
     public event Action<Exception>? Failed;
-    
-    /// <summary>A log line the device sent, without any prefix.</summary>
     public event Action<string>? LogReceived;
-    
-    /// <summary>The device asked this computer to launch a program or open a URL.</summary>
     public event Action<string>? ExecuteRequested;
     
     public bool IsConnected => _monitor.IsConnected;
