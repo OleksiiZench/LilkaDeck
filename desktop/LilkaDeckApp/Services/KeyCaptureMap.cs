@@ -52,7 +52,7 @@ public static class KeyCaptureMap
         { Key.OemMinus, "MINUS" }, { Key.OemPlus, "EQUALS" },
         { Key.OemComma, "COMMA" }, { Key.OemPeriod, "PERIOD" },
         { Key.OemQuestion, "SLASH" }, { Key.OemSemicolon, "SEMICOLON" },
-        { Key.OemQuotes, "QUOTE" }, { Key.OemBackslash, "BACKSLASH" },
+        { Key.OemQuotes, "QUOTE" }, { Key.OemPipe, "BACKSLASH" }, { Key.OemBackslash, "BACKSLASH" },
         { Key.OemOpenBrackets, "LBRACKET" }, { Key.OemCloseBrackets, "RBRACKET" },
         { Key.OemTilde, "GRAVE" },
 

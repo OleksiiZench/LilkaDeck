@@ -85,5 +85,7 @@ The classes without Avalonia (view models, `DeckEditSession`, `ProfileSaver`, `D
   that moment ends up in the file.
 - The firmware sends no `ACK_DONE` for an empty file, so the client does not wait for one.
 - `KeyCaptureMap` cannot tell NumPad Enter or the right-hand modifiers from their main-keyboard twins.
+- The backslash/pipe key (`OemPipe`) and the ISO 102nd key (`OemBackslash`) are two distinct physical keys,
+  both mapped to the firmware token `BACKSLASH`.
 - Launching on `EXECUTE:` runs whatever the device sends. This is a deliberate decision, not a gap.
 - Not tested on Windows.
