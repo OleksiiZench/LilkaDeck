@@ -43,7 +43,7 @@ public sealed class DeviceGateway : IProfileDevice, IProfileFileSource, IProfile
     
     public Task SyncAsync(int profileId, SyncFile config, IReadOnlyList<SyncFile> icons, IProgress<SyncProgress> progress)
     {
-        var device = _source.Current ?? throw new InvalidOperationException("Not connected to Lilka.");
+        var device = _source.Current ?? throw new DeviceNotConnectedException();
         return device.SyncAsync(profileId, config, icons, progress, default);
     }
     

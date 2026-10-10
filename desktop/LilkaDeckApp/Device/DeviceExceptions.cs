@@ -23,3 +23,12 @@ public sealed class DeviceTimeoutException : TimeoutException
     public string? FileName { get; }
     public int Offset { get; }
 }
+
+/// <summary>A save was requested while no Lilka is connected.</summary>
+public sealed class DeviceNotConnectedException : InvalidOperationException
+{
+    public DeviceNotConnectedException()
+        : base("No Lilka is connected.")
+    {
+    }
+}

@@ -1,13 +1,17 @@
 using System;
 using LilkaDeckApp.Device;
+using LilkaDeckApp.Transport;
 
 namespace LilkaDeckApp.ViewModels;
 
 /// <summary>Words a failure for the user.</summary>
 public static class DeviceErrorText
 {
-    public static string Describe(Exception exception) =>
-    exception is DeviceTimeoutException timeout ? Describe(timeout) : exception.Message;
+    public static string Describe(Exception exception)
+    {
+        if (exception is DeviceNotConnectedException or TransportClosedException) return "З'єднання з Лілкою втрачено";
+        return exception is DeviceTimeoutException timeout ? Describe(timeout) : exception.Message;
+    }
     
     private static string Describe(DeviceTimeoutException timeout) => timeout.Step switch
     {
