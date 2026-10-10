@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -26,6 +27,9 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         AddHandler(DragDrop.DropEvent, OnDrop);
+        // Tunnel: the recorder has to win over the TextBox's own Ctrl+A/C/V, Backspace and arrows,
+        // which are handled during the bubbling phase.
+        ActionsTextBox.AddHandler(KeyDownEvent, OnActionsTextBoxKeyDown, RoutingStrategies.Tunnel);
         
         _application = DeckApplication.Create(new AvaloniaFilePicker(this), new AvaloniaUiDispatcher());
         _viewModel = _application.ViewModel;

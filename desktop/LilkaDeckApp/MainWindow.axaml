@@ -153,8 +153,7 @@
     
     <TextBlock x:Name="ActionHintTextBlock" Text="{Binding Editor.ActionHint}" Margin="0,5,0,0"/>
     <TextBox x:Name="ActionsTextBox" Text="{Binding Editor.ActionText}"
-             PlaceholderText="{Binding Editor.ActionPlaceholder}" IsReadOnly="{Binding Editor.IsActionReadOnly}"
-             KeyDown="OnActionsTextBoxKeyDown"/>
+             PlaceholderText="{Binding Editor.ActionPlaceholder}" IsReadOnly="{Binding Editor.IsActionReadOnly}"/>
     <TextBlock Text="Або оберіть медіа-дію:" IsVisible="{Binding Editor.AreMediaButtonsVisible}" Foreground="#888" FontSize="12" Margin="0,5,0,0"/>
     <WrapPanel x:Name="MediaButtonsPanel" IsVisible="{Binding Editor.AreMediaButtonsVisible}">
                             <Button Content="⏯ Play/Pause" Command="{Binding Editor.MediaCommand}" CommandParameter="MEDIA_PLAY_PAUSE" Margin="0,0,4,4"/>
