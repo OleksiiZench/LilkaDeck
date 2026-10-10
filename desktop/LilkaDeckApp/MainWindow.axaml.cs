@@ -84,19 +84,26 @@ public partial class MainWindow : Window
     // A picture dropped on a deck button goes to that button, which is selected first.
     private async void OnDrop(object? sender, DragEventArgs e)
     {
-        var files = e.DataTransfer.TryGetFiles()?.ToArray();
-        if (files == null || files.Length == 0 || e.Source is not Control source) return;
-        
-        var button = source.FindAncestorOfType<Button>(includeSelf: true);
-        if (button?.Content is not DeckButtonViewModel target) return;
-        
-        string? inputPath = files[0].TryGetLocalPath() ?? files[0].Path.LocalPath;
-        if (string.IsNullOrEmpty(inputPath)) return;
-        
-        if (_viewModel.Deck.SelectedPosition != target.Position) _viewModel.Deck.Select(target.Position);
-        
-        _viewModel.Activity.Info($"Обробка файлу {files[0].Name} для кнопки {target.Position.ToWireName()}...");
-        await _viewModel.Icons.ImportAsync(inputPath);
+        try
+        {
+            var files = e.DataTransfer.TryGetFiles()?.ToArray();
+            if (files == null || files.Length == 0 || e.Source is not Control source) return;
+            
+            var button = source.FindAncestorOfType<Button>(includeSelf: true);
+            if (button?.Content is not DeckButtonViewModel target) return;
+            
+            string? inputPath = files[0].TryGetLocalPath() ?? files[0].Path.LocalPath;
+            if (string.IsNullOrEmpty(inputPath)) return;
+            
+            if (_viewModel.Deck.SelectedPosition != target.Position) _viewModel.Deck.Select(target.Position);
+            
+            _viewModel.Activity.Info($"Обробка файлу {files[0].Name} для кнопки {target.Position.ToWireName()}...");
+            await _viewModel.Icons.ImportAsync(inputPath);
+        }
+        catch (Exception ex)
+        {
+            _viewModel.Activity.Error($"Помилка: {ex.Message}");
+        }
     }
     
     // In shortcut mode the box is a recorder: the key presses become a combination, nothing is typed.

@@ -10,8 +10,9 @@ namespace LilkaDeckApp.ViewModels;
 /// after connecting, and the programs the device asks to launch. The events come from a background
 /// thread, so every change of a view model is posted to the UI thread.
 /// </summary>
-public sealed class DeviceEventPresenter
+public sealed class DeviceEventPresenter : IDisposable
 {
+    private readonly IDeviceEvents _events;
     private readonly IUiDispatcher _ui;
     private readonly ActivityViewModel _activity;
     private readonly ConnectionViewModel _connection;
@@ -28,6 +29,7 @@ public sealed class DeviceEventPresenter
         LaunchHandler launcher,
         Func<Task> refreshProfile)
     {
+        _events = events;
         _ui = ui;
         _activity = activity;
         _connection = connection;
@@ -40,6 +42,15 @@ public sealed class DeviceEventPresenter
         events.Failed += failures.Report;
         events.LogReceived += OnLogReceived;
         events.ExecuteRequested += OnExecuteRequested;
+    }
+    
+    public void Dispose()
+    {
+        _events.Connected -= OnConnected;
+        _events.Disconnected -= OnDisconnected;
+        _events.Failed -= _failures.Report;
+        _events.LogReceived -= OnLogReceived;
+        _events.ExecuteRequested -= OnExecuteRequested;
     }
     
     private void OnConnected(string portName) => _ui.Post(() =>

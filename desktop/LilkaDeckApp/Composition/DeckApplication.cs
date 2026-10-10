@@ -17,11 +17,13 @@ namespace LilkaDeckApp.Composition;
 public sealed class DeckApplication : IDisposable
 {
     private readonly DeviceConnection _device;
+    private readonly DeviceEventPresenter _presenter;
     
-    private DeckApplication(MainViewModel viewModel, DeviceConnection device)
+    private DeckApplication(MainViewModel viewModel, DeviceConnection device, DeviceEventPresenter presenter)
     {
         ViewModel = viewModel;
         _device = device;
+        _presenter = presenter;
     }
     
     public MainViewModel ViewModel { get; }
@@ -29,7 +31,11 @@ public sealed class DeckApplication : IDisposable
     /// <summary>Starts looking for the Lilka.</summary>
     public void Start() => _device.Start();
     
-    public void Dispose() => _device.Dispose();
+    public void Dispose()
+    {
+        _presenter.Dispose();
+        _device.Dispose();
+    }
     
     public static DeckApplication Create(IFilePicker filePicker, IUiDispatcher ui)
     {
@@ -50,7 +56,7 @@ public sealed class DeckApplication : IDisposable
         var editor = new ButtonEditorViewModel(session, () => profile.IsLoading);
         var icons = new IconImportViewModel(session, session, filePicker, galleryFolder, deck, activity, saver.SaveNowAsync);
         
-        _ = new DeviceEventPresenter(
+        var presenter = new DeviceEventPresenter(
             device, ui, activity, connection, failures, new LaunchHandler(new ShellTargetLauncher()), () => profile.RefreshAsync());
         
         // What changes on the deck, in the editor and in the profile screen reaches the others from here.
@@ -78,6 +84,6 @@ public sealed class DeckApplication : IDisposable
         };
         profile.Removed += session.Clear;
         
-        return new DeckApplication(new MainViewModel(activity, connection, profile, deck, editor, icons), device);
+        return new DeckApplication(new MainViewModel(activity, connection, profile, deck, editor, icons), device, presenter);
     }
 }
