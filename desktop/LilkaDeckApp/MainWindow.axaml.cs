@@ -50,12 +50,6 @@ public partial class MainWindow : Window
         }
     }
     
-    protected override void OnClosed(EventArgs e)
-    {
-        base.OnClosed(e);
-        _application.Dispose();
-    }
-    
     private void KeepNewestLogLineInView()
     {
         _viewModel.Activity.PropertyChanged += (_, e) =>
