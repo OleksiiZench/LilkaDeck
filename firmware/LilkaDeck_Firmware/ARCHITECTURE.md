@@ -33,7 +33,7 @@ created in one place only: `Application`.
   reads raw bytes at that point. Log lines must not start with `EXECUTE:`, `ACK_`,
   `LILKA_PONG` or `PROFILES:`.
 - **Protocol constants** live in `sync/SyncProtocol.h` and must match
-  `LilkaCommunicationService` in the desktop app.
+  `DeviceSession` and `LilkaDeviceClient` in the desktop app.
 - **HID registration order.** Keyboard and consumer-control devices register in
   construction order, which is why `_keyboard` is the first member of `Application`.
 
