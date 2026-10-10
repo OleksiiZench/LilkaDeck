@@ -45,19 +45,12 @@ public sealed class ConnectionMonitor : IDisposable
 
     public DeviceSession? Session => Volatile.Read(ref _session);
     public bool IsConnected => Session is { IsClosed: false };
-    public string ConnectedPortName => Session?.PortName ?? string.Empty;
 
     public void Start()
     {
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
         _loop = RunAsync(_cts.Token);
-    }
-
-    public void Disconnect()
-    {
-        var session = Session;
-        if (session != null) Drop(session, null, notify: true);
     }
 
     public void Dispose()

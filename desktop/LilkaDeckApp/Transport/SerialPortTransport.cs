@@ -39,8 +39,6 @@ public sealed class SerialPortTransport : ISerialTransport
         _reader = new ChunkReader(_incoming.Reader);
     }
 
-    public string PortName => _port.PortName;
-
     public void Open()
     {
         _port.Open();

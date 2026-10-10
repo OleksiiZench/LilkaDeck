@@ -35,7 +35,6 @@ public sealed class DeviceSession : IDisposable
     public event Action<string>? ExecuteRequested;
     public event Action<string>? LogReceived;
 
-    public string PortName => _transport.PortName;
     public bool IsClosed => _closed;
     public Exception? Failure { get; private set; }
 

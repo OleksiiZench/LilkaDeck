@@ -1,4 +1,3 @@
-using System.IO;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
@@ -25,11 +24,6 @@ public static class RawIconEncoder
             }));
 
         return PackPixels(image);
-    }
-
-    public static void ConvertFile(string imagePath, string outputPath)
-    {
-        File.WriteAllBytes(outputPath, Encode(imagePath));
     }
 
     private static byte[] PackPixels(Image<Rgba32> image)

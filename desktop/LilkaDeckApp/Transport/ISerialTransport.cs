@@ -10,8 +10,6 @@ namespace LilkaDeckApp.Transport;
 /// </summary>
 public interface ISerialTransport : IDisposable
 {
-    string PortName { get; }
-
     void Open();
 
     Task WriteLineAsync(string line, CancellationToken cancellationToken);
