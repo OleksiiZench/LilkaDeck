@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -18,6 +19,9 @@ namespace LilkaDeckApp;
 // the key recorder, the scroll position of the log, and hiding the window in the tray.
 public partial class MainWindow : Window
 {
+    // The OS usually swallows the KeyDown of these keys, so they are captured on KeyUp instead.
+    private static readonly HashSet<Key> KeyUpOnlyKeys = new() { Key.PrintScreen, Key.Pause };
+
     private readonly DeckApplication _application;
     private readonly MainViewModel _viewModel;
     
@@ -27,9 +31,12 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         AddHandler(DragDrop.DropEvent, OnDrop);
-        // Tunnel: the recorder has to win over the TextBox's own Ctrl+A/C/V, Backspace and arrows,
-        // which are handled during the bubbling phase.
-        ActionsTextBox.AddHandler(KeyDownEvent, OnActionsTextBoxKeyDown, RoutingStrategies.Tunnel);
+        // Tunnel at the window: the recorder has to win over the TextBox's own Ctrl+A/C/V, Backspace,
+        // arrows and the context menu that the Menu key would otherwise open. Attaching it to the window
+        // instead of the TextBox also lets it see keys the TextBox consumes before raising them up.
+        AddHandler(KeyDownEvent, OnRecorderKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(KeyUpEvent, OnRecorderKeyUp, RoutingStrategies.Tunnel);
+        AddHandler(ContextRequestedEvent, OnRecorderContextRequested, RoutingStrategies.Tunnel);
         
         _application = DeckApplication.Create(new AvaloniaFilePicker(this), new AvaloniaUiDispatcher());
         _viewModel = _application.ViewModel;
@@ -105,19 +112,40 @@ public partial class MainWindow : Window
     }
     
     // In shortcut mode the box is a recorder: the key presses become a combination, nothing is typed.
-    private void OnActionsTextBoxKeyDown(object? sender, KeyEventArgs e)
+    // The recorder only runs while the action box holds focus, so typing elsewhere is unaffected.
+    private bool IsRecording => _viewModel.Editor.IsShortcutMode && ActionsTextBox.IsFocused;
+
+    private void OnRecorderKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!IsRecording || KeyUpOnlyKeys.Contains(e.Key)) return;
+
+        e.Handled = true;
+        RecordKey(e);
+    }
+
+    private void OnRecorderKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (!IsRecording || !KeyUpOnlyKeys.Contains(e.Key)) return;
+
+        e.Handled = true;
+        RecordKey(e);
+    }
+
+    // The Menu key opens the focused control's context menu, which would steal the press.
+    private void OnRecorderContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (IsRecording) e.Handled = true;
+    }
+
+    private void RecordKey(KeyEventArgs e)
     {
         var editor = _viewModel.Editor;
-        if (!editor.IsShortcutMode) return;
-        
-        e.Handled = true;
-        
         if (e.Key is Key.Back or Key.Delete)
         {
             editor.ClearAction();
             return;
         }
-        
+
         switch (ShortcutCapture.TryCapture(e.Key, e.KeyModifiers, out var shortcut))
         {
             case CaptureOutcome.Captured:

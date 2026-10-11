@@ -30,7 +30,8 @@ public sealed class ButtonEditorViewModel : ObservableObject
     {
         _store = store;
         _isProfileLoading = isProfileLoading;
-        MediaCommand = new RelayCommand<string>(SetMedia);
+        MediaCommand = new RelayCommand<string>(ApplyToken);
+        SpecialKeyCommand = new RelayCommand<string>(ApplyToken);
     }
 
     /// <summary>Raised when the user changed something that has to be saved.</summary>
@@ -40,6 +41,12 @@ public sealed class ButtonEditorViewModel : ObservableObject
 
     /// <summary>Sets the action text to the media key named by the command parameter, for example "MEDIA_NEXT".</summary>
     public ICommand MediaCommand { get; }
+
+    /// <summary>
+    /// Sets the action to a system key the recorder cannot capture, for example "PRINTSCREEN".
+    /// Needed on Wayland, where the compositor grabs PrintScreen before the application sees it.
+    /// </summary>
+    public ICommand SpecialKeyCommand { get; }
 
     public bool HasSelection => _position.HasValue;
 
@@ -118,7 +125,7 @@ public sealed class ButtonEditorViewModel : ObservableObject
 
     public void ClearAction() => ApplyAction("", "");
 
-    private void SetMedia(string mediaToken) => ApplyAction(mediaToken, mediaToken);
+    private void ApplyToken(string token) => ApplyAction(token, token);
 
     // The box shows what was set; the store gets the text in its stored form.
     private void ApplyAction(string displayText, string storedText)

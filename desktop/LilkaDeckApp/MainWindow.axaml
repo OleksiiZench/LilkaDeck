@@ -5,7 +5,7 @@
         xmlns:vm="using:LilkaDeckApp.ViewModels"
         x:DataType="vm:MainViewModel"
         Title="LilkaDeck Configurator" 
-        Width="1250" Height="830" MinWidth="1150"
+        Width="1250" Height="960" MinWidth="1150"
         RequestedThemeVariant="Dark"
         WindowStartupLocation="CenterScreen"
         Icon="avares://LilkaDeckApp/assets/icons_source/lilka-icon.ico">
@@ -164,6 +164,16 @@
                             <Button Content="🔇 Mute" Command="{Binding Editor.MediaCommand}" CommandParameter="MEDIA_MUTE" Margin="0,0,4,4"/>
                             <Button Content="☀ Brightness+" Command="{Binding Editor.MediaCommand}" CommandParameter="MEDIA_BRIGHTNESS_UP" Margin="0,0,4,4"/>
                             <Button Content="🔅 Brightness-" Command="{Binding Editor.MediaCommand}" CommandParameter="MEDIA_BRIGHTNESS_DOWN" Margin="0,0,4,4"/>
+                        </WrapPanel>
+                        <TextBlock Text="Системні клавіші:" IsVisible="{Binding Editor.AreMediaButtonsVisible}" Foreground="#888" FontSize="12" Margin="0,5,0,0"/>
+                        <WrapPanel x:Name="SpecialKeyButtonsPanel" IsVisible="{Binding Editor.AreMediaButtonsVisible}">
+                            <Button Content="PrtSc" Command="{Binding Editor.SpecialKeyCommand}" CommandParameter="PRINTSCREEN" Margin="0,0,4,4"/>
+                            <Button Content="Menu" Command="{Binding Editor.SpecialKeyCommand}" CommandParameter="MENU" Margin="0,0,4,4"/>
+                            <Button Content="Win" Command="{Binding Editor.SpecialKeyCommand}" CommandParameter="GUI" Margin="0,0,4,4"/>
+                            <Button Content="Pause" Command="{Binding Editor.SpecialKeyCommand}" CommandParameter="PAUSE" Margin="0,0,4,4"/>
+                            <Button Content="Caps" Command="{Binding Editor.SpecialKeyCommand}" CommandParameter="CAPSLOCK" Margin="0,0,4,4"/>
+                            <Button Content="Num" Command="{Binding Editor.SpecialKeyCommand}" CommandParameter="NUMLOCK" Margin="0,0,4,4"/>
+                            <Button Content="ScrLk" Command="{Binding Editor.SpecialKeyCommand}" CommandParameter="SCROLLLOCK" Margin="0,0,4,4"/>
                         </WrapPanel>
                 </StackPanel>
 

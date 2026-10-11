@@ -87,5 +87,10 @@ The classes without Avalonia (view models, `DeckEditSession`, `ProfileSaver`, `D
 - `KeyCaptureMap` cannot tell NumPad Enter or the right-hand modifiers from their main-keyboard twins.
 - The backslash/pipe key (`OemPipe`) and the ISO 102nd key (`OemBackslash`) are two distinct physical keys,
   both mapped to the firmware token `BACKSLASH`.
+- `PRINTSCREEN`, `PAUSE`, `MENU` and the lock keys are captured on `KeyUp` (their `KeyDown` is often
+  swallowed) and can also be set with the system-key buttons. On Wayland the compositor grabs `PRINTSCREEN`
+  as a global screenshot shortcut, so it cannot be recorded at all and only the buttons work.
+- The `Win`/`Super` key (Start menu) is a modifier in `KeyCaptureMap`, so the recorder ignores it on its own;
+  it is bound with the `Win` system-key button, which stores the firmware token `GUI`.
 - Launching on `EXECUTE:` runs whatever the device sends. This is a deliberate decision, not a gap.
 - Not tested on Windows.
