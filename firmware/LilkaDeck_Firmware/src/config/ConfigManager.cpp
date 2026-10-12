@@ -57,6 +57,12 @@ void ConfigManager::setActiveColorHex(const String& hex) {
     _activeColor = Color::fromHex(hex.c_str());
 }
 
+void ConfigManager::loadDefaults() {
+    _profileName = DEFAULT_PROFILE_NAME;
+    setActiveColorHex(DEFAULT_ACTIVE_COLOR);
+    _buttons.clear();
+}
+
 const std::map<IconPosition, ButtonConfig>& ConfigManager::getButtons() const {
     return _buttons;
 }

@@ -12,8 +12,8 @@ bool ProfilePresenter::show(uint8_t profileId, RedrawMode mode) {
     Log::info(TAG, "Loading profile_%d (%s redraw)", profileId, mode == RedrawMode::Full ? "full" : "incremental");
 
     if (!loadConfig(profileId)) {
-        Log::error(TAG, "Failed to load profile_%d", profileId);
-        return false;
+        Log::error(TAG, "Failed to load profile_%d, using defaults", profileId);
+        _config.loadDefaults();
     }
 
     if (mode == RedrawMode::Full) {

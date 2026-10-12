@@ -25,8 +25,9 @@ public sealed class ProfileLoader
     }
 
     /// <summary>
-    /// Returns null when the config could not be read. <paramref name="onConfigLoaded"/> fires as soon as
-    /// the config is known, before the icons are fetched, so the UI can show the name and color early.
+    /// Returns null when the config could not be downloaded. A config that was downloaded but cannot be parsed
+    /// comes back as an empty default document. <paramref name="onConfigLoaded"/> fires as soon as the config is
+    /// known, before the icons are fetched, so the UI can show the name and color early.
     /// </summary>
     public async Task<ProfileDocument?> LoadAsync(
         int profileId,
@@ -37,7 +38,10 @@ public sealed class ProfileLoader
         byte[]? configBytes = await _source.DownloadFileAsync(profileId, ConfigFileName, cancellationToken);
         if (configBytes == null) return null;
 
-        if (!ProfileSerializer.TryDeserialize(Encoding.UTF8.GetString(configBytes), out var document, out _)) return null;
+        // An unreadable config is treated as an empty profile: the editor can overwrite it with the next save.
+        ProfileDocument document = ProfileSerializer.TryDeserialize(Encoding.UTF8.GetString(configBytes), out var parsed, out _)
+            ? parsed
+            : ProfileDocument.CreateDefault();
 
         onConfigLoaded?.Invoke(document);
         await DownloadIconsAsync(profileId, document, onIconDownloading, cancellationToken);

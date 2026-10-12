@@ -12,4 +12,8 @@ public sealed record ProfileDocument(
 {
     public const string DefaultName = "Profile";
     public const string DefaultActiveColor = "#00FFFF";
+
+    /// <summary>An empty profile: the name and color defaults, no buttons. Used when the config on the device cannot be parsed.</summary>
+    public static ProfileDocument CreateDefault() =>
+        new(DefaultName, DefaultActiveColor, new Dictionary<DeckPosition, ButtonDefinition>());
 }
