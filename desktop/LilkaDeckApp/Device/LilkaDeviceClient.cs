@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using LilkaDeckApp.Imaging;
 using LilkaDeckApp.Protocol;
 using static LilkaDeckApp.Protocol.LilkaProtocol;
 
@@ -130,8 +131,9 @@ public sealed class LilkaDeviceClient : ILilkaDevice
     // An empty file has no chunks and no final acknowledgement, because the device sends none.
     private async Task SendFileAsync(DeviceSession.Exchange exchange, SyncFile file, CancellationToken cancellationToken)
     {
+        string deviceFileName = FileNameSanitizer.SanitizeFileName(file.Name);
         await Within(
-            exchange.RequestAsync(Commands.StartFile(file.Name, file.Content.Length), Ack(AckKind.FileAccepted), _timeouts.Command, cancellationToken),
+            exchange.RequestAsync(Commands.StartFile(deviceFileName, file.Content.Length), Ack(AckKind.FileAccepted), _timeouts.Command, cancellationToken),
             DeviceStep.AcceptFile, file.Name);
 
         int offset = 0;
