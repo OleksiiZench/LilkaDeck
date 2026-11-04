@@ -41,9 +41,28 @@ public sealed class DeviceSession : IDisposable
     public void Start() => _pump = Task.Run(PumpAsync);
 
     /// <summary>Waits for its turn, then runs the body as the only conversation with the device.</summary>
-    public async Task<T> RunExclusiveAsync<T>(Func<Exchange, Task<T>> body, CancellationToken cancellationToken)
+    public Task<T> RunExclusiveAsync<T>(Func<Exchange, Task<T>> body, CancellationToken cancellationToken) =>
+        RunWithLockAsync(body, () => _exchangeLock.WaitAsync(cancellationToken));
+
+    public Task RunExclusiveAsync(Func<Exchange, Task> body, CancellationToken cancellationToken) =>
+        RunExclusiveAsync(exchange => RunBodyAsync(body, exchange), cancellationToken);
+
+    /// <summary>Runs the body only if the device is free within the given time; otherwise returns false.</summary>
+    public async Task<bool> TryRunExclusiveAsync(Func<Exchange, Task> body, TimeSpan wait, CancellationToken cancellationToken)
     {
-        await _exchangeLock.WaitAsync(cancellationToken);
+        if (!await _exchangeLock.WaitAsync(wait, cancellationToken)) return false;
+        return await RunAcquiredAsync(exchange => RunBodyAsync(body, exchange));
+    }
+
+    private async Task<T> RunWithLockAsync<T>(Func<Exchange, Task<T>> body, Func<Task> acquire)
+    {
+        await acquire();
+        return await RunAcquiredAsync(body);
+    }
+
+    // Runs the body as one conversation, with the exchange lock already held.
+    private async Task<T> RunAcquiredAsync<T>(Func<Exchange, Task<T>> body)
+    {
         try
         {
             return await body(new Exchange(this));
@@ -54,26 +73,10 @@ public sealed class DeviceSession : IDisposable
         }
     }
 
-    public Task RunExclusiveAsync(Func<Exchange, Task> body, CancellationToken cancellationToken) =>
-        RunExclusiveAsync<bool>(async exchange =>
-        {
-            await body(exchange);
-            return true;
-        }, cancellationToken);
-
-    /// <summary>Runs the body only if the device is free within the given time; otherwise returns false.</summary>
-    public async Task<bool> TryRunExclusiveAsync(Func<Exchange, Task> body, TimeSpan wait, CancellationToken cancellationToken)
+    private static async Task<bool> RunBodyAsync(Func<Exchange, Task> body, Exchange exchange)
     {
-        if (!await _exchangeLock.WaitAsync(wait, cancellationToken)) return false;
-        try
-        {
-            await body(new Exchange(this));
-            return true;
-        }
-        finally
-        {
-            _exchangeLock.Release();
-        }
+        await body(exchange);
+        return true;
     }
 
     public void Dispose()
