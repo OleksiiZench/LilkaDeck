@@ -1,10 +1,9 @@
 using System;
-using System.Windows.Input;
 
 namespace LilkaDeckApp.Mvvm;
 
 /// <summary>A command that receives its argument from the view (CommandParameter).</summary>
-public sealed class RelayCommand<T> : ICommand
+public sealed class RelayCommand<T> : CommandBase
 {
     private readonly Action<T> _execute;
     private readonly Func<T, bool>? _canExecute;
@@ -15,14 +14,10 @@ public sealed class RelayCommand<T> : ICommand
         _canExecute = canExecute;
     }
 
-    public event EventHandler? CanExecuteChanged;
+    public override bool CanExecute(object? parameter) => parameter is T value && (_canExecute?.Invoke(value) ?? true);
 
-    public bool CanExecute(object? parameter) => parameter is T value && (_canExecute?.Invoke(value) ?? true);
-
-    public void Execute(object? parameter)
+    public override void Execute(object? parameter)
     {
         if (parameter is T value) _execute(value);
     }
-
-    public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }

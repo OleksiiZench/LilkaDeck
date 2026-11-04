@@ -1,11 +1,10 @@
 using System;
 using System.Threading.Tasks;
-using System.Windows.Input;
 
 namespace LilkaDeckApp.Mvvm;
 
 /// <summary>A command that runs asynchronous work. It disables itself while running, so it cannot be started twice.</summary>
-public sealed class AsyncRelayCommand : ICommand
+public sealed class AsyncRelayCommand : CommandBase
 {
     private readonly Func<Task> _execute;
     private readonly Func<bool>? _canExecute;
@@ -19,11 +18,9 @@ public sealed class AsyncRelayCommand : ICommand
         _onError = onError;
     }
 
-    public event EventHandler? CanExecuteChanged;
+    public override bool CanExecute(object? parameter) => !_isRunning && (_canExecute?.Invoke() ?? true);
 
-    public bool CanExecute(object? parameter) => !_isRunning && (_canExecute?.Invoke() ?? true);
-
-    public async void Execute(object? parameter) => await ExecuteAsync();
+    public override async void Execute(object? parameter) => await ExecuteAsync();
 
     public async Task ExecuteAsync()
     {
@@ -45,6 +42,4 @@ public sealed class AsyncRelayCommand : ICommand
             RaiseCanExecuteChanged();
         }
     }
-
-    public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }

@@ -1,9 +1,8 @@
 using System;
-using System.Windows.Input;
 
 namespace LilkaDeckApp.Mvvm;
 
-public sealed class RelayCommand : ICommand
+public sealed class RelayCommand : CommandBase
 {
     private readonly Action _execute;
     private readonly Func<bool>? _canExecute;
@@ -14,11 +13,7 @@ public sealed class RelayCommand : ICommand
         _canExecute = canExecute;
     }
 
-    public event EventHandler? CanExecuteChanged;
+    public override bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
 
-    public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
-
-    public void Execute(object? parameter) => _execute();
-
-    public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+    public override void Execute(object? parameter) => _execute();
 }
