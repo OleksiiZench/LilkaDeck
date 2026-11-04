@@ -165,10 +165,10 @@ public sealed class DeviceSession : IDisposable
         switch (message)
         {
             case ExecuteMessage execute:
-                Raise(ExecuteRequested, execute.Target);
+                SafeEvent.Raise(ExecuteRequested, execute.Target, "device");
                 break;
             case LogMessage log:
-                Raise(LogReceived, log.Text);
+                SafeEvent.Raise(LogReceived, log.Text, "device");
                 break;
             case FileSendStartMessage start:
                 // The raw bytes belong to this message, so they are read here even if nobody is waiting for them.
@@ -200,19 +200,6 @@ public sealed class DeviceSession : IDisposable
         if (pending == null || !pending.TryComplete(message))
         {
             Trace.TraceWarning($"Unexpected device message: {message}");
-        }
-    }
-
-    // A slow or faulty listener must not take the connection down with it.
-    private static void Raise(Action<string>? handler, string argument)
-    {
-        try
-        {
-            handler?.Invoke(argument);
-        }
-        catch (Exception ex)
-        {
-            Trace.TraceWarning($"A device event handler failed: {ex.Message}");
         }
     }
 

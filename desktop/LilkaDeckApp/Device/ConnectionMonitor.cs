@@ -100,7 +100,7 @@ public sealed class ConnectionMonitor : IDisposable
             if (session == null) continue;
 
             Volatile.Write(ref _session, session);
-            Raise(Connected, port);
+            SafeEvent.Raise(Connected, port, "connection");
             return;
         }
     }
@@ -116,7 +116,7 @@ public sealed class ConnectionMonitor : IDisposable
             transport = _createTransport(port);
             transport.Open();
             session = new DeviceSession(transport);
-            Raise(SessionCreated, session);
+            SafeEvent.Raise(SessionCreated, session, "connection");
             session.Start();
 
             await Task.Delay(_timing.BootDelay, cancellationToken);
@@ -163,19 +163,6 @@ public sealed class ConnectionMonitor : IDisposable
         if (Interlocked.CompareExchange(ref _session, null, session) != session) return;
 
         session.Dispose();
-        if (notify) Raise(Disconnected, failure);
-    }
-
-    // A faulty listener must not stop the monitor.
-    private static void Raise<T>(Action<T>? handler, T argument)
-    {
-        try
-        {
-            handler?.Invoke(argument);
-        }
-        catch (Exception ex)
-        {
-            Trace.TraceWarning($"A connection event handler failed: {ex.Message}");
-        }
+        if (notify) SafeEvent.Raise(Disconnected, failure, "connection");
     }
 }
