@@ -13,8 +13,6 @@ namespace LilkaDeckApp.Profiles;
 /// </summary>
 public sealed class ProfileLoader
 {
-    private const string ConfigFileName = "config.json";
-
     private readonly IProfileFileSource _source;
     private readonly ProfileCaches _caches;
 
@@ -35,7 +33,7 @@ public sealed class ProfileLoader
         Action<string>? onIconDownloading = null,
         CancellationToken cancellationToken = default)
     {
-        byte[]? configBytes = await _source.DownloadFileAsync(profileId, ConfigFileName, cancellationToken);
+        byte[]? configBytes = await _source.DownloadFileAsync(profileId, ProfileFileNames.ConfigFileName, cancellationToken);
         if (configBytes == null) return null;
 
         // An unreadable config is treated as an empty profile: the editor can overwrite it with the next save.

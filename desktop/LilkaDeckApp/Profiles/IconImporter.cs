@@ -26,9 +26,7 @@ public sealed class IconImportException : Exception
 /// </summary>
 public sealed class IconImporter
 {
-    private const string RawExtension = ".raw";
-
-    public static IReadOnlyList<string> SupportedExtensions { get; } = new[] { ".png", ".jpg", ".jpeg", RawExtension };
+    public static IReadOnlyList<string> SupportedExtensions { get; } = new[] { ".png", ".jpg", ".jpeg", IconFileName.Extension };
 
     private readonly IconCache _cache;
 
@@ -46,7 +44,7 @@ public sealed class IconImporter
         }
 
         string fileName = IconFileName.FromSource(Path.GetFileNameWithoutExtension(sourcePath));
-        string cachedPath = extension == RawExtension
+        string cachedPath = extension == IconFileName.Extension
             ? StoreRaw(sourcePath, fileName)
             : _cache.Save(fileName, RawIconEncoder.Encode(sourcePath));
 

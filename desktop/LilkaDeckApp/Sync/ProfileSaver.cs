@@ -15,7 +15,6 @@ namespace LilkaDeckApp.Sync;
 /// </summary>
 public sealed class ProfileSaver
 {
-    private const string ConfigFileName = "config.json";
     private static readonly TimeSpan DefaultDelay = TimeSpan.FromSeconds(1.5);
     
     private readonly IOpenProfile _profile;
@@ -67,7 +66,7 @@ public sealed class ProfileSaver
         }
         
         var progress = new Progress<SyncProgress>(value => ShowProgress(profileId, value));
-        await _device.SyncAsync(profileId, new SyncFile(ConfigFileName, payload.ConfigJson), icons, progress);
+        await _device.SyncAsync(profileId, new SyncFile(ProfileFileNames.ConfigFileName, payload.ConfigJson), icons, progress);
         
         _activity.Info("Збережено на пристрій!");
         _session.MarkUploaded(payload.IconFiles);
