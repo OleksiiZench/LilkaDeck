@@ -1,4 +1,4 @@
-using System.Text;
+using System.IO;
 
 namespace LilkaDeckApp.Imaging;
 
@@ -19,42 +19,12 @@ public static class FileNameSanitizer
             return FallbackStem;
         }
 
-        string extension = System.IO.Path.GetExtension(fileName);
-        string stem = System.IO.Path.GetFileNameWithoutExtension(fileName);
-        string sanitizedStem = SanitizeStem(stem);
-        return sanitizedStem + extension;
+        string extension = Path.GetExtension(fileName);
+        string stem = Path.GetFileNameWithoutExtension(fileName);
+        return SanitizeStem(stem) + extension;
     }
 
     /// <summary>Sanitizes just the stem part of a file name.</summary>
-    public static string SanitizeStem(string stem)
-    {
-        if (string.IsNullOrEmpty(stem))
-        {
-            return FallbackStem;
-        }
-
-        var result = new StringBuilder();
-        foreach (char character in stem)
-        {
-            result.Append(Transliteration.Of(character));
-        }
-        return Tidy(result.ToString());
-    }
-
-    private static string Tidy(string raw)
-    {
-        var collapsed = new StringBuilder();
-        foreach (char character in raw)
-        {
-            bool repeatsUnderscore = character == '_' && collapsed.Length > 0 && collapsed[collapsed.Length - 1] == '_';
-            if (!repeatsUnderscore) collapsed.Append(character);
-        }
-
-        string stem = collapsed.ToString().Trim('_', '-');
-        if (stem.Length > MaxStemLength)
-        {
-            stem = stem.Substring(0, MaxStemLength).TrimEnd('_', '-');
-        }
-        return stem.Length == 0 ? FallbackStem : stem;
-    }
+    public static string SanitizeStem(string stem) =>
+        AsciiStem.From(stem, MaxStemLength, FallbackStem);
 }

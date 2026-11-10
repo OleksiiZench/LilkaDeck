@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace LilkaDeckApp.Imaging;
 
 /// <summary>
@@ -13,31 +11,6 @@ public static class IconFileName
     private const int MaxStemLength = 40;
 
     /// <summary>Turns the name of a picture, without its extension, into a device-safe icon file name.</summary>
-    public static string FromSource(string sourceName)
-    {
-        var stem = new StringBuilder();
-        foreach (char character in sourceName)
-        {
-            stem.Append(Transliteration.Of(character));
-        }
-        return Tidy(stem.ToString()) + Extension;
-    }
-
-    // Collapses runs of underscores, trims the ends and keeps the name short.
-    private static string Tidy(string raw)
-    {
-        var collapsed = new StringBuilder();
-        foreach (char character in raw)
-        {
-            bool repeatsUnderscore = character == '_' && collapsed.Length > 0 && collapsed[collapsed.Length - 1] == '_';
-            if (!repeatsUnderscore) collapsed.Append(character);
-        }
-
-        string stem = collapsed.ToString().Trim('_', '-');
-        if (stem.Length > MaxStemLength)
-        {
-            stem = stem.Substring(0, MaxStemLength).TrimEnd('_', '-');
-        }
-        return stem.Length == 0 ? FallbackStem : stem;
-    }
+    public static string FromSource(string sourceName) =>
+        AsciiStem.From(sourceName, MaxStemLength, FallbackStem) + Extension;
 }
